@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^1.1.3",
-    "@zevals/core": "workspace:^"
+    "@zevals/core": "workspace:^",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "ai": "^4.3.15"

@@ -7,6 +7,7 @@ import {
   ToolMessage as LCToolMessage,
 } from '@langchain/core/messages';
 import { Runnable } from '@langchain/core/runnables';
+import { z } from 'zod';
 import { Agent, Judge, Message, SyntheticUser } from '@zevals/core';
 
 export function langChainMessageToZEvals(message: LCBaseMessage): Message | undefined {
@@ -127,7 +128,9 @@ export function langChainZEvalsJudge({ model }: { model: BaseChatModel }): Judge
         return message ? [message] : [];
       });
 
-      const output = await model.withStructuredOutput?.(schema).invoke(lcMessages);
+      const output = await model
+        .withStructuredOutput?.<z.infer<typeof schema>>(schema)
+        .invoke(lcMessages);
       if (!output) {
         throw new Error('Given model does not support structured output');
       }

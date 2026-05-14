@@ -35,7 +35,8 @@
     }
   },
   "dependencies": {
-    "@zevals/core": "workspace:^"
+    "@zevals/core": "workspace:^",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@langchain/core": "^0.3.53"
