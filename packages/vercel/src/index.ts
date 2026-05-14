@@ -1,6 +1,5 @@
-import { Agent, Judge, Message, SyntheticUser } from '@zevals/core';
+import { Agent, Judge, Message, SyntheticUser, z } from '@zevals/core';
 import { CoreMessage, generateObject, LanguageModelV1, ToolCallUnion, ToolSet } from 'ai';
-import { z } from 'zod';
 
 export function vercelCoreMessageFromZEvalsMessage(message: Message): CoreMessage {
   if (message.role === 'system' || message.role === 'user' || message.role === 'assistant') {

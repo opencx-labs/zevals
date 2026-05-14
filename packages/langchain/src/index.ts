@@ -7,8 +7,7 @@ import {
   ToolMessage as LCToolMessage,
 } from '@langchain/core/messages';
 import { Runnable } from '@langchain/core/runnables';
-import { z } from 'zod';
-import { Agent, Judge, Message, SyntheticUser } from '@zevals/core';
+import { Agent, Judge, Message, SyntheticUser, z } from '@zevals/core';
 
 export function langChainMessageToZEvals(message: LCBaseMessage): Message | undefined {
   if (message.getType() === 'system') {

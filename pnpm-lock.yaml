@@ -92,9 +92,6 @@ importers:
       '@zevals/core':
         specifier: workspace:^
         version: link:../core
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
     devDependencies:
       '@langchain/core':
         specifier: ^0.3.80
@@ -163,9 +160,6 @@ importers:
       '@zevals/core':
         specifier: workspace:^
         version: link:../core
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
     devDependencies:
       ai:
         specifier: ^4.3.15
