@@ -1,4 +1,4 @@
-import { Agent, Judge, Message, SyntheticUser } from '@zevals/core';
+import { Agent, Judge, Message, SyntheticUser, z } from '@zevals/core';
 import { CoreMessage, generateObject, LanguageModelV1, ToolCallUnion, ToolSet } from 'ai';
 
 export function vercelCoreMessageFromZEvalsMessage(message: Message): CoreMessage {
@@ -24,7 +24,11 @@ export function vercelZEvalsJudge({ model }: { model: LanguageModelV1 }): Judge 
     async invoke(params) {
       const messages = params.messages.map(vercelCoreMessageFromZEvalsMessage);
       const schema = params.schema;
-      const { object } = await generateObject({ model, schema, messages });
+      const { object } = await generateObject<z.infer<typeof schema>>({
+        model,
+        schema,
+        messages,
+      });
 
       return { output: object };
     },

@@ -180,7 +180,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await cancelPendingOrderTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -211,7 +214,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await exchangeDeliveredOrderItemsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -241,7 +247,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.query;
       const result = await findUserIdByEmailTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -271,7 +277,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.query;
       const result = await findUserIdByNameZipTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -298,7 +304,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.query;
       const result = await getOrderDetailsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -325,7 +331,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.query;
       const result = await getProductDetailsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -352,7 +358,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.query;
       const result = await getUserDetailsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -406,7 +412,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await modifyPendingOrderAddressTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -437,7 +446,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await modifyPendingOrderItemsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -468,7 +480,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await modifyPendingOrderPaymentTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -496,7 +511,7 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await modifyUserAddressTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },
@@ -527,7 +542,10 @@ function privateRoutes(fastify: ReturnType<typeof getRootFastify>) {
       const input = request.body;
       const result = await returnDeliveredOrderItemsTool.invoke(input, db);
       if (!result.success) {
-        return reply.status(result.status).send({ error: result.message });
+        if (result.status === 400) {
+          return reply.status(400).send({ error: result.message });
+        }
+        return reply.status(404).send({ error: result.message });
       }
       return reply.send(result.output);
     },

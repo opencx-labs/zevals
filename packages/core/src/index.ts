@@ -9,6 +9,7 @@ export * from './criteria/index';
 export * from './eval-runner';
 export * from './message';
 export * from './segment';
+export { z } from 'zod';
 
 const zevals = { ...criteria, ...runner, ...segments, ...message, ...agent };
 
