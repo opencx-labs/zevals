@@ -2,10 +2,18 @@ export type ToolCall = {
   id?: string;
   name: string;
   args: Record<string, unknown>;
-  result?: Record<string, any>;
+  result?: unknown;
 };
 
-export type UserMessage = { role: 'user'; content: string };
+export type UserMessage = {
+  role: 'user';
+  content: string;
+  /**
+   * Opaque, user-defined data attached to the message (attachments, channel metadata, etc.).
+   * Zevals passes it through untouched to {@link Agent.invoke}; it is never sent to judges.
+   */
+  context?: Record<string, unknown>;
+};
 export type ToolResultMessage = {
   role: 'tool';
   tool_call_id?: string;
@@ -30,7 +38,7 @@ export type AgentResponseGenerationContext = {
     | { role: 'assistant'; content: string; tool_calls?: Array<ToolCall> }
   >;
   /** The tool calls that were made by the LLM. */
-  tool_calls?: Array<ToolCall & { result?: Record<string, any> }>;
+  tool_calls?: Array<ToolCall>;
 };
 
 export type AIMessage = {

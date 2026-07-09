@@ -10,6 +10,28 @@ export type CriterionEvaluationParams = {
   messages: Array<Message>;
 };
 
+/**
+ * Which part of the transcript a criterion evaluates.
+ * - `fullTranscript` (default): all messages so far.
+ * - `lastAssistantTurn`: only the agent's latest turn — everything after the last user message.
+ */
+export type CriterionScope = 'fullTranscript' | 'lastAssistantTurn';
+
+/** Selects the messages a criterion should see based on a {@link CriterionScope}. */
+export function scopeMessages({
+  messages,
+  scope,
+}: {
+  messages: Array<Message>;
+  scope?: CriterionScope;
+}): Array<Message> {
+  if (!scope || scope === 'fullTranscript') return messages;
+
+  const lastUserIndex = messages.findLastIndex((m) => m.role === 'user');
+
+  return lastUserIndex === -1 ? messages : messages.slice(lastUserIndex + 1);
+}
+
 /** The result of a criterion evaluation. */
 export type CriterionResult<Output> = {
   output: Output;
@@ -22,6 +44,18 @@ export type CriterionResult<Output> = {
 };
 
 export const Criterion = {
+  /**
+   * Restricts the messages a criterion sees to the given {@link CriterionScope}.
+   * Useful for `until` conditions that should only consider the agent's latest turn.
+   */
+  scoped<T>({ criterion, scope }: { criterion: Criterion<T>; scope: CriterionScope }): Criterion<T> {
+    return {
+      ...criterion,
+      evaluate: (params) =>
+        criterion.evaluate({ ...params, messages: scopeMessages({ messages: params.messages, scope }) }),
+    };
+  },
+
   negate<T>(c: Criterion<T>): Criterion<T> {
     return {
       ...c,

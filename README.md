@@ -144,6 +144,7 @@ test('Tool calls example', { timeout: 20000 }, async () => {
 You can simulate a human user by specifying a prompt for the user, and a condition to signal the end of the simulation.
 
 ```typescript
+import { BaseMessage } from '@langchain/core/messages';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { ChatOpenAI } from '@langchain/openai';
 import zevals from '@zevals/core';
@@ -156,7 +157,7 @@ test('User simulation example', { timeout: 60000 }, async () => {
   const judge = langChainZEvalsJudge({ model });
 
   const user = langChainZEvalsSyntheticUser({
-    runnable: RunnableLambda.from((messages) =>
+    runnable: RunnableLambda.from((messages: BaseMessage[]) =>
       model.invoke([
         {
           role: 'system',
@@ -190,6 +191,82 @@ test('User simulation example', { timeout: 60000 }, async () => {
 
 > [!NOTE]
 > A `userSimulation` is a type of [Segment](./packages/core/src/segment.ts). You can very easily create new types of segments by implementing the interface.
+
+If the simulation reaches `max` turns without the `until` criterion passing, zevals records an explicit failed result for the criterion (with a reason indicating the ceiling was hit), so an exhausted simulation is never silent.
+
+## Deterministic Adaptive Turns
+
+Scripted `message(...)` sequences are rigid, and `userSimulation` costs an LLM call per turn. When you just need to respond to whatever the agent asked — deterministically and for free — use `dynamicMessage`, which computes the next message from the transcript at execution time:
+
+```typescript
+zevals.dynamicMessage(({ messages }) => {
+  const lastAssistant = messages.findLast((m) => m.role === 'assistant');
+
+  return {
+    role: 'user',
+    content: lastAssistant?.content.includes('name') ? 'Jane Doe' : 'MG-12345678',
+  };
+}),
+zevals.agentResponse(),
+```
+
+## Message Context (Attachments, Metadata)
+
+User messages can carry an opaque `context` object — attachments, channel metadata, pre-chat data, anything. Zevals passes it through untouched to `Agent.invoke` and never sends it to judges:
+
+```typescript
+zevals.message({
+  role: 'user',
+  content: 'I have attached the letter',
+  context: { attachments: [{ url: 'https://example.com/letter.pdf' }] },
+});
+```
+
+A `SyntheticUser` can also return `context` on its messages; `userSimulation` preserves it.
+
+## Scoping Assertions
+
+By default, criteria see the full transcript. To judge only the agent's latest turn (everything after the last user message), pass `scope` to `aiAssertion`, or wrap any criterion with `Criterion.scoped`:
+
+```typescript
+zevals.aiAssertion({ judge, prompt: 'The agent transferred the chat', scope: 'lastAssistantTurn' });
+
+zevals.Criterion.scoped({ criterion: myCriterion, scope: 'lastAssistantTurn' });
+```
+
+For conditions that should not rely on a judge at all (e.g. "the handoff tool was actually called"), remember that `until` accepts any `Criterion` — including `aiToolsCalled` / `aiToolCalls` — and criteria compose with `Criterion.and` / `Criterion.negate`.
+
+## Repeated Runs
+
+Hard assertions should hold repeatedly, not on average. `repeat` runs a scenario `count` times, building a fresh agent/segments per iteration through the `scenario` factory:
+
+```typescript
+const { success, iterations, failedIterations } = await zevals.repeat({
+  count: 5,
+  scenario: async () => ({
+    agent: await makeFreshAgent(),
+    segments: [
+      /* ... */
+    ],
+  }),
+});
+
+expect(success).toBe(true); // All 5 iterations must pass
+```
+
+## Readable Failure Output
+
+`formatTranscript` renders an evaluation result (messages, tool calls, and criterion verdicts with the judge's reasoning) as a readable string — useful in test failure messages:
+
+```typescript
+const res = await zevals.evaluate({ agent, segments });
+
+expect(res.success, zevals.formatTranscript(res)).toBe(true);
+// [user] Cancel my order
+// [assistant] Cancelling now
+//   [tool call] cancel_order({"orderId":"42"}) => "not_found"
+// [eval FAIL] Order cancelled — The order was never cancelled
+```
 
 ## Integration with LLM Providers
 

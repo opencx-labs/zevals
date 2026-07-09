@@ -1,13 +1,26 @@
 import { z } from 'zod';
 import { Judge } from '../eval-runner';
-import { Criterion, CriterionEvaluationParams, CriterionResult } from './criterion';
+import {
+  Criterion,
+  CriterionEvaluationParams,
+  CriterionResult,
+  CriterionScope,
+  scopeMessages,
+} from './criterion';
 
-export const aiAssertion: (options: { prompt: string; judge: Judge }) => Criterion<boolean> = (
-  options,
-) => ({
+export const aiAssertion: (options: {
+  prompt: string;
+  judge: Judge;
+  /** Which part of the transcript the judge sees. Defaults to `fullTranscript`. */
+  scope?: CriterionScope;
+}) => Criterion<boolean> = (options) => ({
   name: options.prompt,
 
-  async evaluate(params: CriterionEvaluationParams): Promise<CriterionResult<boolean>> {
+  async evaluate(rawParams: CriterionEvaluationParams): Promise<CriterionResult<boolean>> {
+    const params = {
+      ...rawParams,
+      messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
+    };
     const prompt = `
     You are a judge.
 
@@ -41,7 +54,9 @@ export const aiAssertion: (options: { prompt: string; judge: Judge }) => Criteri
         reason: z
           .string()
           .nullable()
-          .describe('If false, explain why the assertion fails. Null if the assertion passes.'),
+          .describe(
+            'Brief explanation of the verdict, citing the relevant parts of the conversation. Especially important when the assertion fails.',
+          ),
       }),
     });
 

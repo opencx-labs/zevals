@@ -30,12 +30,7 @@ export function extractToolCallsFromMessages(messages: Array<Message>): Array<To
   return messages.flatMap((message, index) => {
     if (message.role !== 'assistant') return [];
 
-    const calls: Array<{
-      id?: string;
-      name: string;
-      args: Record<string, any>;
-      result?: Record<string, any>;
-    }> = (message.tool_calls ?? [])
+    const calls: Array<ToolCall> = (message.tool_calls ?? [])
       .map((toolCall) => ({
         id: toolCall.id,
         name: toolCall.name,

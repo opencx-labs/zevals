@@ -1,3 +1,4 @@
+import { BaseMessage } from '@langchain/core/messages';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { ChatOpenAI } from '@langchain/openai';
 import zevals from '@zevals/core';
@@ -10,7 +11,7 @@ test('User simulation example', { timeout: 60000 }, async () => {
   const judge = langChainZEvalsJudge({ model });
 
   const user = langChainZEvalsSyntheticUser({
-    runnable: RunnableLambda.from((messages) =>
+    runnable: RunnableLambda.from((messages: BaseMessage[]) =>
       model.invoke([
         {
           role: 'system',

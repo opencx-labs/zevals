@@ -27,6 +27,24 @@ export function message(message: Message): Segment {
   };
 }
 
+/**
+ * Adds a message computed from the conversation history at execution time.
+ *
+ * Useful for deterministic adaptive turns, e.g. answering whichever question the
+ * agent asked, without the cost and nondeterminism of a {@link userSimulation}.
+ */
+export function dynamicMessage(
+  respond: (params: { messages: Array<Message> }) => Message | Promise<Message>,
+): Segment {
+  return {
+    async evaluate({ previousActualMessages }) {
+      const message = await respond({ messages: previousActualMessages });
+
+      return [{ type: 'message', message }];
+    },
+  };
+}
+
 /** Invokes the AI agent to generate a response. */
 export function agentResponse<A extends Agent = Agent>(): Segment<A> {
   return {
@@ -93,11 +111,13 @@ export function userSimulation({
             } else return [];
           }),
         });
-        evaluatedSegmentPromises.push({
-          type: 'message',
-          message: { role: 'user', content: userResponse.content },
-        });
-        messages.push({ role: 'user', content: userResponse.content });
+        const userMessage: UserMessage = {
+          role: 'user',
+          content: userResponse.content,
+          ...(userResponse.context ? { context: userResponse.context } : {}),
+        };
+        evaluatedSegmentPromises.push({ type: 'message', message: userMessage });
+        messages.push(userMessage);
 
         const agentResponse = await agent.invoke({ messages });
         evaluatedSegmentPromises.push({
@@ -119,12 +139,21 @@ export function userSimulation({
           return evaluatedSegmentPromises;
         }
 
-        // If max is reached, we add the last failed criterion evaluation result
+        // If max is reached without the break condition being met, we record an
+        // explicit failure so the exhausted simulation is visible in the results.
         if (i === maxIterations - 1) {
+          const maxReachedPrefix = `User simulation reached the maximum of ${maxIterations} turns without satisfying '${until.name}'`;
+
           evaluatedSegmentPromises.push({
             type: 'eval',
             criterion: until,
-            evalResult: Promise.resolve(breakConditionResult),
+            evalResult: Promise.resolve({
+              ...breakConditionResult,
+              status: 'failure',
+              reason: breakConditionResult.reason
+                ? `${maxReachedPrefix}. Last evaluation: ${breakConditionResult.reason}`
+                : maxReachedPrefix,
+            }),
           });
 
           return evaluatedSegmentPromises;

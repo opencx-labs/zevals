@@ -1,4 +1,3 @@
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   AIMessage as LCAIMessage,
   BaseMessage as LCBaseMessage,
@@ -6,8 +5,35 @@ import {
   SystemMessage as LCSystemMessage,
   ToolMessage as LCToolMessage,
 } from '@langchain/core/messages';
-import { Runnable } from '@langchain/core/runnables';
 import { Agent, Judge, Message, SyntheticUser, z } from '@zevals/core';
+
+/**
+ * Minimal structural interface for a LangChain runnable that maps messages to a message.
+ *
+ * Intentionally loose so that runnables/models from any `@langchain/core` version are
+ * accepted without casts, even when the installed version differs from the one zevals
+ * was built against.
+ */
+export interface LangChainMessagesRunnableLike {
+  invoke(
+    messages: unknown,
+    options?: unknown,
+  ): Promise<{
+    content: { toString(): string };
+    tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }>;
+  }>;
+}
+
+/**
+ * Minimal structural interface for a LangChain chat model that supports structured output.
+ * See {@link LangChainMessagesRunnableLike} for why this is not typed as `BaseChatModel`.
+ */
+export interface LangChainStructuredOutputModelLike {
+  withStructuredOutput?(
+    schema: unknown,
+    config?: unknown,
+  ): { invoke(messages: unknown, options?: unknown): Promise<unknown> };
+}
 
 export function langChainMessageToZEvals(message: LCBaseMessage): Message | undefined {
   if (message.getType() === 'system') {
@@ -72,7 +98,7 @@ export function langChainMessagesFromZEvals(messages: Message[]): LCBaseMessage[
 export function langChainZEvalsSyntheticUser({
   runnable,
 }: {
-  runnable: Runnable<LCBaseMessage[], LCBaseMessage>;
+  runnable: LangChainMessagesRunnableLike;
 }): SyntheticUser {
   return {
     async respond(params) {
@@ -81,11 +107,7 @@ export function langChainZEvalsSyntheticUser({
         return message ? [message] : [];
       });
 
-      const userResponse = langChainMessageToZEvals(await runnable.invoke(lcMessages));
-
-      if (!userResponse) {
-        throw new Error('No result from LangChain');
-      }
+      const userResponse = await runnable.invoke(lcMessages);
 
       return { role: 'user', content: userResponse.content.toString() };
     },
@@ -95,7 +117,7 @@ export function langChainZEvalsSyntheticUser({
 export function langChainZEvalsAgent({
   runnable,
 }: {
-  runnable: Runnable<LCBaseMessage[], LCBaseMessage>;
+  runnable: LangChainMessagesRunnableLike;
 }): Agent {
   return {
     async invoke({ messages }) {
@@ -104,22 +126,28 @@ export function langChainZEvalsAgent({
         return message ? [message] : [];
       });
 
-      const runnableRes = await runnable.invoke(lcMessages);
+      const response = await runnable.invoke(lcMessages);
 
-      const response = langChainMessageToZEvals(runnableRes);
-
-      if (!response) {
-        throw new Error(
-          `No result from LangChain: ${runnableRes.content.toString()} - ${JSON.stringify(runnableRes)}`,
-        );
-      }
-
-      return { message: { role: 'assistant', content: response.content.toString() } };
+      return {
+        message: {
+          role: 'assistant',
+          content: response.content.toString(),
+          tool_calls: response.tool_calls?.map((tc) => ({
+            id: tc.id,
+            name: tc.name,
+            args: tc.args,
+          })),
+        },
+      };
     },
   };
 }
 
-export function langChainZEvalsJudge({ model }: { model: BaseChatModel }): Judge {
+export function langChainZEvalsJudge({
+  model,
+}: {
+  model: LangChainStructuredOutputModelLike;
+}): Judge {
   return {
     async invoke({ messages, schema }) {
       const lcMessages = messages.flatMap((m) => {
@@ -127,12 +155,12 @@ export function langChainZEvalsJudge({ model }: { model: BaseChatModel }): Judge
         return message ? [message] : [];
       });
 
-      const output = await model
-        .withStructuredOutput?.<z.infer<typeof schema>>(schema)
-        .invoke(lcMessages);
-      if (!output) {
+      const structuredModel = model.withStructuredOutput?.(schema);
+      if (!structuredModel) {
         throw new Error('Given model does not support structured output');
       }
+
+      const output = (await structuredModel.invoke(lcMessages)) as z.infer<typeof schema>;
 
       return { output };
     },
