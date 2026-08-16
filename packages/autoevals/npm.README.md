@@ -6,4 +6,4 @@
 
 Simple, practical AI evaluations in TypeScript.
 
-Take a look at the [REAME](https://github.com/openchatai/zevals) for the monorepo.
+Take a look at the [README](https://github.com/openchatai/zevals) for the monorepo.
