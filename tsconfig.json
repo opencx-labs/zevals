@@ -11,7 +11,7 @@
     "declarationMap": true,
     "moduleDetection": "force",
     "sourceMap": true,
-    "types": ["vitest/globals"],
+    "types": ["node", "vitest/globals"],
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true
