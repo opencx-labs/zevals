@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(({ mode }) => ({
   test: {
-    workspace: ['.'],
+    projects: ['.'],
     globals: true,
     environment: 'node',
     env: {
