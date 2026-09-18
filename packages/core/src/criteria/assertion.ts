@@ -7,21 +7,57 @@ import {
   CriterionScope,
   scopeMessages,
 } from './criterion';
+import { evaluateWithJev, isJevClient, JevAssertionOptions, JevClient, jevThreshold } from './jev';
 
-export const aiAssertion: (options: {
+export type AiAssertionOptions = {
   prompt: string;
-  judge: Judge;
   /** Which part of the transcript the judge sees. Defaults to `fullTranscript`. */
   scope?: CriterionScope;
-}) => Criterion<boolean> = (options) => ({
-  name: options.prompt,
+} & (
+  | ({ judge: JevClient } & JevAssertionOptions)
+  // Jev-only options are rejected for LLM judges rather than silently ignored.
+  | ({ judge: Judge } & { [K in keyof JevAssertionOptions]?: never })
+);
 
-  async evaluate(rawParams: CriterionEvaluationParams): Promise<CriterionResult<boolean>> {
-    const params = {
-      ...rawParams,
-      messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
+/**
+ * Asks an AI whether `prompt` holds for the conversation.
+ *
+ * `judge` is either an LLM {@link Judge}, which returns a verdict with a written reason, or a
+ * {@link JevClient}, which returns a calibrated probability compared against `threshold`.
+ * The Jev-only options are {@link JevAssertionOptions}.
+ *
+ * Errors: with a Jev judge, a failed call or malformed answer is returned as a failed result
+ * with `error` set. An LLM judge's errors are thrown, as before Jev was supported.
+ */
+export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = (options) => {
+  const { judge } = options;
+
+  if (isJevClient(judge)) {
+    const threshold = jevThreshold(options);
+
+    return {
+      name: options.prompt,
+      evaluate: (params) =>
+        evaluateWithJev({
+          client: judge,
+          prompt: options.prompt,
+          messages: scopeMessages({ messages: params.messages, scope: options.scope }),
+          threshold,
+          criteria: options.criteria,
+          explainFailures: options.explainFailures,
+        }),
     };
-    const prompt = `
+  }
+
+  return {
+    name: options.prompt,
+
+    async evaluate(rawParams: CriterionEvaluationParams): Promise<CriterionResult<boolean>> {
+      const params = {
+        ...rawParams,
+        messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
+      };
+      const prompt = `
     You are a judge.
 
     You evaluate the truth value of an assertion based on a given prompt.
@@ -44,26 +80,27 @@ export const aiAssertion: (options: {
     </conversation>
     `;
 
-    const {
-      output: { verdict, reason },
-    } = await options.judge.invoke({
-      messages: [{ role: 'system', content: prompt }],
-      schema: z.object({
-        verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
+      const {
+        output: { verdict, reason },
+      } = await judge.invoke({
+        messages: [{ role: 'system', content: prompt }],
+        schema: z.object({
+          verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
 
-        reason: z
-          .string()
-          .nullable()
-          .describe(
-            'Brief explanation of the verdict, citing the relevant parts of the conversation. Especially important when the assertion fails.',
-          ),
-      }),
-    });
+          reason: z
+            .string()
+            .nullable()
+            .describe(
+              'Brief explanation of the verdict, citing the relevant parts of the conversation. Especially important when the assertion fails.',
+            ),
+        }),
+      });
 
-    return {
-      output: verdict,
-      reason: reason?.trim() || undefined,
-      status: verdict ? 'success' : 'failure',
-    };
-  },
-});
+      return {
+        output: verdict,
+        reason: reason?.trim() || undefined,
+        status: verdict ? 'success' : 'failure',
+      };
+    },
+  };
+};

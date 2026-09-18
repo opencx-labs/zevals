@@ -236,6 +236,40 @@ zevals.Criterion.scoped({ criterion: myCriterion, scope: 'lastAssistantTurn' });
 
 For conditions that should not rely on a judge at all (e.g. "the handoff tool was actually called"), remember that `until` accepts any `Criterion` — including `aiToolsCalled` / `aiToolCalls` — and criteria compose with `Criterion.and` / `Criterion.negate`.
 
+## Jev as the Judge
+
+`aiAssertion`'s `judge` can be an LLM `Judge` or a `JevClient` for TypeSafe's [Jev](https://docs.typesafe.ai) model. Jev answers a yes/no question about the transcript with a calibrated probability and no text; the assertion passes when that probability is at or above `threshold` (default `0.5`).
+
+```typescript
+import zevals from '@zevals/core';
+
+const client = zevals.openRouterJevClient(); // reads OPENROUTER_API_KEY
+
+zevals.aiEval(
+  zevals.aiAssertion({
+    judge: client,
+    prompt: 'The agent transferred the chat to a human',
+    scope: 'lastAssistantTurn',
+    // Jev-only, optional:
+    threshold: 0.5,
+    criteria: { true: 'A handoff was performed', false: 'The agent only promised a handoff' },
+    explainFailures: judge, // any zevals Judge; called on failures only
+  }),
+);
+```
+
+Why use it:
+
+- **Cost and latency.** On production replays: ~0.5s and ~$0.00005 per call, compared with seconds and cents for an LLM judge. There were zero malformed outputs across ~1,200 calls.
+- **Borderline assertions become visible.** With a boolean judge, a vague assertion shows up as random pass/fail across repeats. With Jev you see `p≈0.5`, and `reason` marks it `borderline` when p is within 0.05 of the threshold. That usually means the assertion wording needs tightening.
+- **Lower variance** from repeat to repeat, which pairs well with `repeat`.
+
+**The `reason` trade-off.** Jev produces no prose, so `reason` only reports the probability, e.g. `jev p=0.13 (threshold 0.5)`. If you want an explanation, pass `explainFailures`: that judge is called **only when the assertion fails**, and its explanation is appended to `reason`. Passing assertions, the vast majority in a healthy suite, never pay for an LLM call.
+
+With a Jev judge, errors (network failures, non-2xx responses, malformed or out-of-range probabilities) are returned as `CriterionResult.error` with a failed status. They never count as a pass. If `explainFailures` itself throws, the failing verdict stands and the error is attached.
+
+`JevClient` is a small interface (`{ kind: 'jev', probability({ state, instructions, criteria }) => { probability } }`), so you can implement it over any transport. The `kind` marker is how `aiAssertion` tells it apart from an LLM judge, and passing `threshold`, `criteria` or `explainFailures` with an LLM judge is a type error. `openRouterJevClient` uses OpenRouter's **alpha** decisions endpoint (`POST /api/alpha/decisions`, model `typesafe/jev-1.13`), which may change. The model has a 32k-token context limit, so scope long transcripts or they will be rejected.
+
 ## Repeated Runs
 
 Hard assertions should hold repeatedly, not on average. `repeat` runs a scenario `count` times, building a fresh agent/segments per iteration through the `scenario` factory:
