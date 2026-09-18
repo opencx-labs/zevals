@@ -9,6 +9,16 @@ import {
 } from './criterion';
 import { evaluateWithJev, isJevClient, JevAssertionOptions, JevClient, jevThreshold } from './jev';
 
+export type AiAssertionOptions = {
+  prompt: string;
+  /** Which part of the transcript the judge sees. Defaults to `fullTranscript`. */
+  scope?: CriterionScope;
+} & (
+  | ({ judge: JevClient } & JevAssertionOptions)
+  // Jev-only options are rejected for LLM judges rather than silently ignored.
+  | ({ judge: Judge } & { [K in keyof JevAssertionOptions]?: never })
+);
+
 /**
  * Asks an AI whether `prompt` holds for the conversation.
  *
@@ -16,14 +26,7 @@ import { evaluateWithJev, isJevClient, JevAssertionOptions, JevClient, jevThresh
  * {@link JevClient}, which returns a calibrated probability compared against `threshold`.
  * The Jev-only options are {@link JevAssertionOptions}.
  */
-export const aiAssertion: (
-  options: {
-    prompt: string;
-    judge: Judge | JevClient;
-    /** Which part of the transcript the judge sees. Defaults to `fullTranscript`. */
-    scope?: CriterionScope;
-  } & JevAssertionOptions,
-) => Criterion<boolean> = (options) => {
+export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = (options) => {
   const { judge } = options;
 
   if (isJevClient(judge)) {

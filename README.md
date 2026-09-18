@@ -268,7 +268,7 @@ Why use it:
 
 With a Jev judge, errors (network failures, non-2xx responses, malformed or out-of-range probabilities) are returned as `CriterionResult.error` with a failed status. They never count as a pass. If `explainFailures` itself throws, the failing verdict stands and the error is attached.
 
-`JevClient` is a one-method interface (`noul({ state, instructions, criteria }) => { probability }`), so you can implement it over any transport. `openRouterJevClient` uses OpenRouter's **alpha** decisions endpoint (`POST /api/alpha/decisions`, model `typesafe/jev-1.13`), which may change. The model has a 32k-token context limit, so scope long transcripts or they will be rejected.
+`JevClient` is a small interface (`{ kind: 'jev', noul({ state, instructions, criteria }) => { probability } }`), so you can implement it over any transport. The `kind` marker is how `aiAssertion` tells it apart from an LLM judge, and passing `threshold`, `criteria` or `explainFailures` with an LLM judge is a type error. `openRouterJevClient` uses OpenRouter's **alpha** decisions endpoint (`POST /api/alpha/decisions`, model `typesafe/jev-1.13`), which may change. The model has a 32k-token context limit, so scope long transcripts or they will be rejected.
 
 ## Repeated Runs
 

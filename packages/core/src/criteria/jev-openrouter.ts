@@ -34,6 +34,8 @@ export function openRouterJevClient(
   const doFetch = options.fetch ?? fetch;
 
   return {
+    kind: 'jev',
+
     async noul({ state, instructions, criteria }) {
       const apiKey = options.apiKey ?? process.env.OPENROUTER_API_KEY;
       if (!apiKey)
@@ -51,7 +53,7 @@ export function openRouterJevClient(
 
       if (!response.ok) {
         throw new Error(
-          `OpenRouter decisions request failed: ${response.status} ${await response.text()}`,
+          `OpenRouter decisions request failed: ${response.status} ${await bodyExcerpt(response)}`,
         );
       }
 
@@ -60,4 +62,26 @@ export function openRouterJevClient(
       return { probability: body.answers.q0.noul };
     },
   };
+}
+
+/** Max characters of an error response body kept in the thrown error (and so in test logs). */
+const ERROR_BODY_LIMIT = 500;
+
+/** Reads at most {@link ERROR_BODY_LIMIT} characters of the body, whitespace-collapsed. */
+async function bodyExcerpt(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+
+  const decoder = new TextDecoder();
+  let text = '';
+  while (text.length <= ERROR_BODY_LIMIT) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+  await reader.cancel();
+
+  text = text.replace(/\s+/g, ' ').trim();
+
+  return text.length > ERROR_BODY_LIMIT ? `${text.slice(0, ERROR_BODY_LIMIT)}…` : text;
 }

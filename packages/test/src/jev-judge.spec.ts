@@ -1,4 +1,12 @@
-import { aiAssertion, JevClient, Judge, Message, openRouterJevClient } from '@zevals/core';
+import {
+  aiAssertion,
+  CriterionScope,
+  JevAssertionOptions,
+  JevClient,
+  Judge,
+  Message,
+  openRouterJevClient,
+} from '@zevals/core';
 
 type NoulParams = Parameters<JevClient['noul']>[0];
 
@@ -6,6 +14,7 @@ function fakeClient(probability: unknown): JevClient & { calls: Array<NoulParams
   const calls: Array<NoulParams> = [];
 
   return {
+    kind: 'jev',
     calls,
     async noul(params) {
       calls.push(params);
@@ -38,7 +47,7 @@ const transcript: Array<Message> = [
 function run({
   client,
   ...options
-}: Omit<Parameters<typeof aiAssertion>[0], 'prompt' | 'judge'> & { client: JevClient }) {
+}: JevAssertionOptions & { client: JevClient; scope?: CriterionScope }) {
   return aiAssertion({ prompt: 'Answered', judge: client, ...options }).evaluate({
     messages: transcript,
   });
@@ -173,8 +182,41 @@ describe('aiAssertion with a Jev judge', () => {
     },
   );
 
+  it('never displays a rounded probability on the wrong side of the threshold', async () => {
+    expect((await run({ client: fakeClient(0.499) })).reason).toBe(
+      'jev p=0.499 (threshold 0.5, borderline)',
+    );
+    expect((await run({ client: fakeClient(0.12345) })).reason).toBe('jev p=0.12 (threshold 0.5)');
+  });
+
+  it('treats a judge with a noul member but no kind marker as an LLM judge', async () => {
+    const judge = {
+      noul: 'unrelated',
+      async invoke({ schema }) {
+        return { output: schema.parse({ verdict: true, reason: 'LLM path' }) };
+      },
+    } satisfies Judge & { noul: string };
+
+    expect(
+      await aiAssertion({ prompt: 'Answered', judge }).evaluate({ messages: transcript }),
+    ).toMatchObject({
+      status: 'success',
+      reason: 'LLM path',
+    });
+  });
+
+  it('rejects Jev-only options for an LLM judge at compile time', () => {
+    const judge = fakeJudge('unused');
+
+    // @ts-expect-error threshold only applies to a Jev judge
+    aiAssertion({ prompt: 'x', judge, threshold: 0.8 });
+    // @ts-expect-error explainFailures only applies to a Jev judge
+    aiAssertion({ prompt: 'x', judge, explainFailures: judge });
+  });
+
   it('surfaces a client rejection as an error', async () => {
     const client: JevClient = {
+      kind: 'jev',
       async noul() {
         throw new Error('network down');
       },
@@ -244,6 +286,18 @@ describe('openRouterJevClient', () => {
     await expect(client.noul({ state: {}, instructions: 'x' })).rejects.toThrow(
       /400 context too long/,
     );
+  });
+
+  it('keeps only a bounded, whitespace-collapsed excerpt of an error body', async () => {
+    const { client } = mockedClient(
+      new Response(`line one\n\n  line two ${'x'.repeat(10_000)}`, { status: 502 }),
+    );
+
+    const error = await client.noul({ state: {}, instructions: 'x' }).catch((e: unknown) => e);
+    const message = error instanceof Error ? error.message : '';
+
+    expect(message).toMatch(/^OpenRouter decisions request failed: 502 line one line two x+…$/);
+    expect(message.length).toBeLessThan(600);
   });
 
   it('throws on a malformed response body', async () => {

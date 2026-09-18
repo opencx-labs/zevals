@@ -11,6 +11,8 @@ import { CriterionResult } from './criterion';
  * {@link openRouterJevClient} is provided for OpenRouter.
  */
 export interface JevClient {
+  /** Marks this as a Jev client, so {@link aiAssertion} can tell it apart from an LLM judge. */
+  readonly kind: 'jev';
   noul(params: {
     state: unknown;
     instructions: string;
@@ -39,7 +41,7 @@ export type JevAssertionOptions = {
 
 /** Distinguishes a {@link JevClient} from an LLM {@link Judge}. */
 export function isJevClient(judge: Judge | JevClient): judge is JevClient {
-  return 'noul' in judge;
+  return 'kind' in judge && judge.kind === 'jev';
 }
 
 export function jevThreshold(options: JevAssertionOptions): number {
@@ -84,7 +86,7 @@ export async function evaluateWithJev({
   }
 
   const borderline = Math.abs(probability - threshold) < BORDERLINE_MARGIN ? ', borderline' : '';
-  const summary = `jev p=${round(probability)} (threshold ${threshold}${borderline})`;
+  const summary = `jev p=${formatProbability(probability, threshold)} (threshold ${threshold}${borderline})`;
 
   if (probability >= threshold) return { output: true, status: 'success', reason: summary };
 
@@ -144,6 +146,17 @@ async function explainFailure({
   return reason.trim();
 }
 
-function round(probability: number): number {
-  return Math.round(probability * 100) / 100;
+/**
+ * Rounds to 2 decimals, adding more when rounding would put the displayed value on the other
+ * side of the threshold (e.g. a failing 0.499 is shown as 0.499, not 0.5).
+ */
+function formatProbability(probability: number, threshold: number): number {
+  const passes = probability >= threshold;
+
+  for (let decimals = 2; decimals <= 6; decimals++) {
+    const rounded = Math.round(probability * 10 ** decimals) / 10 ** decimals;
+    if (rounded >= threshold === passes) return rounded;
+  }
+
+  return probability;
 }
