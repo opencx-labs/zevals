@@ -192,7 +192,7 @@ describe('criterion scoping', () => {
 
     const judge: Judge = {
       async invoke({ messages, schema }) {
-        prompts.push(messages[0].content as string);
+        prompts.push(messages.map((m) => m.content).join('\n'));
 
         return { output: schema.parse({ verdict: true, reason: null }) };
       },

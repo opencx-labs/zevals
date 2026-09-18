@@ -133,7 +133,11 @@ async function explainFailure({
 
     The following assertion about a conversation between an AI assistant and a user was evaluated as FALSE.
     Briefly explain why it does not hold, citing the relevant parts of the conversation.
-
+    `,
+      },
+      {
+        role: 'user',
+        content: `
     Assertion:
     <assertion-prompt>
     ${prompt}

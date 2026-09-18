@@ -57,14 +57,16 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
         ...rawParams,
         messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
       };
-      const prompt = `
+      const instructions = `
     You are a judge.
 
     You evaluate the truth value of an assertion based on a given prompt.
     The prompt is a statement about a conversation between the AI assistant and the user.
 
     You need to determine if the response is a correct answer to the prompt.
+    `;
 
+      const input = `
     Assertion prompt:
     <assertion-prompt>
     ${options.prompt}
@@ -83,7 +85,10 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
       const {
         output: { verdict, reason },
       } = await judge.invoke({
-        messages: [{ role: 'system', content: prompt }],
+        messages: [
+          { role: 'system', content: instructions },
+          { role: 'user', content: input },
+        ],
         schema: z.object({
           verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
 
