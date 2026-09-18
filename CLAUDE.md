@@ -46,12 +46,12 @@ Eval promises from `aiEval` are awaited together at the end, so criteria run con
 
 **`aiAssertion` has two kinds of judge** (`criteria/assertion.ts`):
 
-- **LLM `Judge`** (`Judge.invoke({ messages, schema })` returns a zod-typed `output`). This judge gets an XML-tagged prompt and returns `{ verdict, reason }`. Its errors throw.
+- **LLM `Judge`** (`Judge.invoke({ messages, schema })` returns a zod-typed `output`). Instructions go in a `system` message, and the assertion and transcript go in a `user` message (the Anthropic API requires a user turn). It returns `{ verdict, reason }`. Its errors throw.
 - **`JevClient`** (`criteria/jev.ts`, marked with `kind: 'jev'`). This judge returns a calibrated probability, which is compared against `threshold`. Its errors come back as a failed result with `error` set.
   - Jev-only options (`threshold`, `criteria`, `explainFailures`) are a compile error with an LLM judge, because `AiAssertionOptions` is a union.
   - `openRouterJevClient` (`criteria/jev-openrouter.ts`) calls an **alpha** OpenRouter endpoint. The wire-format caveats are recorded, with the date they were verified, in that file's header comment. Check them there before changing the client.
 
-**Transcript text.** `core/src/format.ts` (`formatMessage`, internal, not exported) renders messages as `[role] content` plus tool-call lines. `formatTranscript` uses it for display, and the Jev judge also uses it as model input, so changing the format changes what Jev scores. The LLM `aiAssertion` prompt uses its own `<role>…</role>` format. Keep that one byte-stable, because changing it changes existing users' verdicts.
+**Transcript text.** `core/src/format.ts` (`formatMessage`, internal, not exported) renders messages as `[role] content` plus tool-call and tool-result lines. It is both the display format (`formatTranscript`) and the model input for every judge (LLM `aiAssertion`, faithfulness, Jev). Changing it changes existing users' verdicts, so treat it and the judge prompt text as behaviour, not formatting.
 
 **Public surface.** `core/src/index.ts` re-exports modules with `export *` and also builds a default `zevals` object from the same modules. Anything exported from `criteria/index.ts`, `eval-runner.ts` or `segment.ts` becomes public API.
 
