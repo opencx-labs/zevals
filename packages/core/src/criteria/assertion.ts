@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Judge } from '../eval-runner';
+import { formatMessage } from '../format';
 import {
   Criterion,
   CriterionEvaluationParams,
@@ -57,14 +58,16 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
         ...rawParams,
         messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
       };
-      const prompt = `
-    You are a judge.
+      const instructions = `
+    You are a judge. A developer testing an AI assistant has written an assertion about a
+    conversation between the assistant and a user. Decide whether the assertion is true of that
+    conversation.
 
-    You evaluate the truth value of an assertion based on a given prompt.
-    The prompt is a statement about a conversation between the AI assistant and the user.
+    In the conversation, each line starts with the speaker's role. "[tool call]" lines are tools the
+    assistant called, and "[tool:name]" lines are the results those tools returned.
+    `;
 
-    You need to determine if the response is a correct answer to the prompt.
-
+      const input = `
     Assertion prompt:
     <assertion-prompt>
     ${options.prompt}
@@ -72,18 +75,17 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
 
     Conversation between AI and user:
     <conversation>
-    ${params.messages
-      .map((message) => {
-        return `<${message.role}>${message.content.toString()}</${message.role}>`;
-      })
-      .join('\n\n')}
+    ${params.messages.flatMap(formatMessage).join('\n')}
     </conversation>
     `;
 
       const {
         output: { verdict, reason },
       } = await judge.invoke({
-        messages: [{ role: 'system', content: prompt }],
+        messages: [
+          { role: 'system', content: instructions },
+          { role: 'user', content: input },
+        ],
         schema: z.object({
           verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
 

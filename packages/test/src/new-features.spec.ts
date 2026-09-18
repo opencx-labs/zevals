@@ -6,6 +6,7 @@ import {
   Criterion,
   dynamicMessage,
   evaluate,
+  faithfulnessCriterion,
   formatTranscript,
   Judge,
   message,
@@ -192,7 +193,7 @@ describe('criterion scoping', () => {
 
     const judge: Judge = {
       async invoke({ messages, schema }) {
-        prompts.push(messages[0].content as string);
+        prompts.push(userContent(messages));
 
         return { output: schema.parse({ verdict: true, reason: null }) };
       },
@@ -211,6 +212,92 @@ describe('criterion scoping', () => {
   });
 });
 
+/** The single user message a judge received; judge prompts put the evaluated data there. */
+function userContent(messages: Array<Message>): string {
+  const user = messages.filter((m) => m.role === 'user');
+  expect(user).toHaveLength(1);
+  return String(user[0].content);
+}
+
+describe('judge requests', () => {
+  const withTools: Array<Message> = [
+    { role: 'user', content: 'Cancel order 42' },
+    {
+      role: 'assistant',
+      content: 'Cancelling now',
+      tool_calls: [{ name: 'cancel_order', args: { orderId: '42' } }],
+    },
+    { role: 'tool', name: 'cancel_order', content: { status: 'cancelled' } },
+    { role: 'assistant', content: 'Order 42 is cancelled.' },
+  ];
+
+  /** Records each judge request and answers with the given outputs, in order. */
+  function recordingJudge(outputs: Array<unknown>) {
+    const requests: Array<Array<Message>> = [];
+    const judge: Judge = {
+      async invoke({ messages, schema }) {
+        requests.push(messages);
+        return { output: schema.parse(outputs[requests.length - 1]) };
+      },
+    };
+    return { judge, requests };
+  }
+
+  it('aiAssertion sends instructions as system and the transcript, with tool activity, as user', async () => {
+    const { judge, requests } = recordingJudge([{ verdict: true, reason: null }]);
+
+    await aiAssertion({ judge, prompt: 'The order was cancelled' }).evaluate({
+      messages: withTools,
+    });
+
+    expect(requests[0].map((m) => m.role)).toEqual(['system', 'user']);
+    const input = userContent(requests[0]);
+    expect(input).toContain('The order was cancelled');
+    expect(input).toContain('[tool call] cancel_order({"orderId":"42"})');
+    expect(input).toContain('[tool:cancel_order] {"status":"cancelled"}');
+    expect(input).not.toContain('[object Object]');
+  });
+
+  it('faithfulnessCriterion gives both judge calls a user turn and shows tool results', async () => {
+    const { judge, requests } = recordingJudge([
+      { claims: ['Order 42 is cancelled'] },
+      { results: [{ claim_index: 0, supported: true }] },
+    ]);
+
+    const result = await faithfulnessCriterion({ judge }).evaluate({ messages: withTools });
+
+    expect(requests.map((r) => r.map((m) => m.role))).toEqual([
+      ['system', 'user'],
+      ['system', 'user'],
+    ]);
+    expect(userContent(requests[0])).toBe('Order 42 is cancelled.');
+    const verification = userContent(requests[1]);
+    expect(verification).toContain('[tool:cancel_order] {"status":"cancelled"}');
+    expect(verification).toContain('[Claim 0] : Order 42 is cancelled');
+    expect(verification).not.toContain('[object Object]');
+    expect(result.output.results).toEqual([{ claim: 'Order 42 is cancelled', supported: true }]);
+  });
+
+  it('explainFailures sends instructions as system and the transcript as user', async () => {
+    const { judge, requests } = recordingJudge([{ reason: 'It was never cancelled' }]);
+
+    const result = await aiAssertion({
+      prompt: 'The order was cancelled',
+      judge: {
+        kind: 'jev',
+        async probability() {
+          return { probability: 0.1 };
+        },
+      },
+      explainFailures: judge,
+    }).evaluate({ messages: withTools });
+
+    expect(requests[0].map((m) => m.role)).toEqual(['system', 'user']);
+    expect(userContent(requests[0])).toContain('[tool:cancel_order] {"status":"cancelled"}');
+    expect(result.reason).toBe('jev p=0.1 (threshold 0.5): It was never cancelled');
+  });
+});
+
 describe('formatTranscript', () => {
   it('renders messages, tool calls, and criterion verdicts', async () => {
     const criterion = new MockCriterion<boolean>({
@@ -225,9 +312,7 @@ describe('formatTranscript', () => {
             message: {
               role: 'assistant' as const,
               content: 'Cancelling now',
-              tool_calls: [
-                { name: 'cancel_order', args: { orderId: '42' }, result: 'not_found' },
-              ],
+              tool_calls: [{ name: 'cancel_order', args: { orderId: '42' }, result: 'not_found' }],
             },
           };
         },
