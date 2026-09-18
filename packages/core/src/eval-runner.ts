@@ -162,6 +162,22 @@ function formatToolCall(toolCall: ToolCall): string {
   return `${toolCall.name}(${JSON.stringify(toolCall.args)})${result}`;
 }
 
+/** Formats a message (and an assistant's tool calls) as `[role] content` lines. */
+export function formatMessage(message: Message): Array<string> {
+  if (message.role === 'tool') {
+    return [`[tool:${message.name}] ${JSON.stringify(message.content)}`];
+  }
+
+  const toolCalls =
+    message.role === 'assistant'
+      ? [...(message.tool_calls ?? []), ...(message.context?.tool_calls ?? [])].map(
+          (toolCall) => `  [tool call] ${formatToolCall(toolCall)}`,
+        )
+      : [];
+
+  return [`[${message.role}] ${message.content}`, ...toolCalls];
+}
+
 /**
  * Formats an evaluation history (messages, tool calls, and criterion verdicts with
  * reasons) into a readable transcript — handy for failure messages in tests.
@@ -170,22 +186,7 @@ function formatToolCall(toolCall: ToolCall): string {
  */
 export function formatTranscript({ results }: { results: Array<EvaluatedSegment> }): string {
   const lines = results.flatMap((segment) => {
-    if (segment.type === 'message') {
-      const message = segment.message;
-
-      if (message.role === 'tool') {
-        return [`[tool:${message.name}] ${JSON.stringify(message.content)}`];
-      }
-
-      const toolCalls =
-        message.role === 'assistant'
-          ? [...(message.tool_calls ?? []), ...(message.context?.tool_calls ?? [])].map(
-              (toolCall) => `  [tool call] ${formatToolCall(toolCall)}`,
-            )
-          : [];
-
-      return [`[${message.role}] ${message.content}`, ...toolCalls];
-    }
+    if (segment.type === 'message') return formatMessage(segment.message);
 
     const { evalResult, criterion } = segment;
     const status =
