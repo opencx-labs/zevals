@@ -8,7 +8,7 @@ import {
   openRouterJevClient,
 } from '@zevals/core';
 
-type NoulParams = Parameters<JevClient['noul']>[0];
+type NoulParams = Parameters<JevClient['probability']>[0];
 
 function fakeClient(probability: unknown): JevClient & { calls: Array<NoulParams> } {
   const calls: Array<NoulParams> = [];
@@ -16,7 +16,7 @@ function fakeClient(probability: unknown): JevClient & { calls: Array<NoulParams
   return {
     kind: 'jev',
     calls,
-    async noul(params) {
+    async probability(params) {
       calls.push(params);
       // Deliberately untyped: lets tests feed malformed answers through the seam.
       return JSON.parse(JSON.stringify({ probability }));
@@ -189,13 +189,13 @@ describe('aiAssertion with a Jev judge', () => {
     expect((await run({ client: fakeClient(0.12345) })).reason).toBe('jev p=0.12 (threshold 0.5)');
   });
 
-  it('treats a judge with a noul member but no kind marker as an LLM judge', async () => {
+  it('treats a judge with a probability member but no kind marker as an LLM judge', async () => {
     const judge = {
-      noul: 'unrelated',
+      probability: 'unrelated',
       async invoke({ schema }) {
         return { output: schema.parse({ verdict: true, reason: 'LLM path' }) };
       },
-    } satisfies Judge & { noul: string };
+    } satisfies Judge & { probability: string };
 
     expect(
       await aiAssertion({ prompt: 'Answered', judge }).evaluate({ messages: transcript }),
@@ -217,7 +217,7 @@ describe('aiAssertion with a Jev judge', () => {
   it('surfaces a client rejection as an error', async () => {
     const client: JevClient = {
       kind: 'jev',
-      async noul() {
+      async probability() {
         throw new Error('network down');
       },
     };
@@ -253,7 +253,7 @@ describe('openRouterJevClient', () => {
       }),
     );
 
-    const answer = await client.noul({
+    const answer = await client.probability({
       state: { conversation: 'user: hi' },
       instructions: 'The assistant greeted the user',
       criteria: { true: 'A greeting was given' },
@@ -283,7 +283,7 @@ describe('openRouterJevClient', () => {
   it('throws on a non-2xx response', async () => {
     const { client } = mockedClient(new Response('context too long', { status: 400 }));
 
-    await expect(client.noul({ state: {}, instructions: 'x' })).rejects.toThrow(
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
       /400 context too long/,
     );
   });
@@ -293,7 +293,9 @@ describe('openRouterJevClient', () => {
       new Response(`line one\n\n  line two ${'x'.repeat(10_000)}`, { status: 502 }),
     );
 
-    const error = await client.noul({ state: {}, instructions: 'x' }).catch((e: unknown) => e);
+    const error = await client
+      .probability({ state: {}, instructions: 'x' })
+      .catch((e: unknown) => e);
     const message = error instanceof Error ? error.message : '';
 
     expect(message).toMatch(/^OpenRouter decisions request failed: 502 line one line two x+…$/);
@@ -308,7 +310,7 @@ describe('openRouterJevClient', () => {
     });
     const { client } = mockedClient(new Response(body, { status: 503 }));
 
-    await expect(client.noul({ state: {}, instructions: 'x' })).rejects.toThrow(
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
       /^OpenRouter decisions request failed: 503/,
     );
   });
@@ -318,7 +320,7 @@ describe('openRouterJevClient', () => {
       Response.json({ answers: { q0: { type: 'noul', probability: 0.4 } } }),
     );
 
-    await expect(client.noul({ state: {}, instructions: 'x' })).rejects.toThrow();
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow();
   });
 
   it('surfaces an OpenRouter failure as a criterion error', async () => {

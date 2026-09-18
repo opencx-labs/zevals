@@ -25,6 +25,9 @@ export type AiAssertionOptions = {
  * `judge` is either an LLM {@link Judge}, which returns a verdict with a written reason, or a
  * {@link JevClient}, which returns a calibrated probability compared against `threshold`.
  * The Jev-only options are {@link JevAssertionOptions}.
+ *
+ * Errors: with a Jev judge, a failed call or malformed answer is returned as a failed result
+ * with `error` set. An LLM judge's errors are thrown, as before Jev was supported.
  */
 export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = (options) => {
   const { judge } = options;
@@ -36,10 +39,12 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
       name: options.prompt,
       evaluate: (params) =>
         evaluateWithJev({
-          ...options,
           client: judge,
+          prompt: options.prompt,
           messages: scopeMessages({ messages: params.messages, scope: options.scope }),
           threshold,
+          criteria: options.criteria,
+          explainFailures: options.explainFailures,
         }),
     };
   }

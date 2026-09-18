@@ -36,7 +36,7 @@ export function openRouterJevClient(
   return {
     kind: 'jev',
 
-    async noul({ state, instructions, criteria }) {
+    async probability({ state, instructions, criteria }) {
       const apiKey = options.apiKey ?? process.env.OPENROUTER_API_KEY;
       if (!apiKey)
         throw new Error('OpenRouter API key missing: pass apiKey or set OPENROUTER_API_KEY');

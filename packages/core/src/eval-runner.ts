@@ -1,7 +1,8 @@
 import { z, ZodObject, ZodRawShape } from 'zod';
 import { Agent } from './agent';
+import { formatMessage } from './format';
 import { Criterion, CriterionResult } from './criteria/criterion';
-import { Message, ToolCall } from './message';
+import { Message } from './message';
 import { Segment, SegmentEvaluationPromise } from './segment';
 import { groupBy } from './utils';
 
@@ -154,28 +155,6 @@ export async function repeat<A extends Agent>({
       result.success ? [] : [{ iteration, result }],
     ),
   };
-}
-
-function formatToolCall(toolCall: ToolCall): string {
-  const result = toolCall.result === undefined ? '' : ` => ${JSON.stringify(toolCall.result)}`;
-
-  return `${toolCall.name}(${JSON.stringify(toolCall.args)})${result}`;
-}
-
-/** Formats a message (and an assistant's tool calls) as `[role] content` lines. */
-export function formatMessage(message: Message): Array<string> {
-  if (message.role === 'tool') {
-    return [`[tool:${message.name}] ${JSON.stringify(message.content)}`];
-  }
-
-  const toolCalls =
-    message.role === 'assistant'
-      ? [...(message.tool_calls ?? []), ...(message.context?.tool_calls ?? [])].map(
-          (toolCall) => `  [tool call] ${formatToolCall(toolCall)}`,
-        )
-      : [];
-
-  return [`[${message.role}] ${message.content}`, ...toolCalls];
 }
 
 /**

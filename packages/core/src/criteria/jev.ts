@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import { formatMessage, Judge } from '../eval-runner';
+import { Judge } from '../eval-runner';
+import { formatMessage } from '../format';
 import { Message } from '../message';
 import { CriterionResult } from './criterion';
 
+/** What makes an assertion true / false, in words. */
+export type JevCriteria = { true?: string; false?: string };
+
 /**
- * Minimal client for TypeSafe's Jev model. Answers a single `noul` question: the
- * calibrated probability that `instructions` holds for `state`.
+ * Minimal client for TypeSafe's Jev model: the calibrated probability that `instructions`
+ * holds for `state`.
  *
  * Pass one as {@link aiAssertion}'s `judge`. Implement it over any transport;
  * {@link openRouterJevClient} is provided for OpenRouter.
@@ -13,10 +17,10 @@ import { CriterionResult } from './criterion';
 export interface JevClient {
   /** Marks this as a Jev client, so {@link aiAssertion} can tell it apart from an LLM judge. */
   readonly kind: 'jev';
-  noul(params: {
+  probability(params: {
     state: unknown;
     instructions: string;
-    criteria?: { true?: string; false?: string };
+    criteria?: JevCriteria;
   }): Promise<{ probability: number }>;
 }
 
@@ -34,7 +38,7 @@ export type JevAssertionOptions = {
   /** The assertion passes when Jev's probability is at or above this. Defaults to `0.5`. */
   threshold?: number;
   /** Optional descriptions of what makes the assertion true / false. */
-  criteria?: { true?: string; false?: string };
+  criteria?: JevCriteria;
   /** On a failing verdict only, ask this LLM judge to explain the failure. */
   explainFailures?: Judge;
 };
@@ -65,17 +69,19 @@ export async function evaluateWithJev({
   threshold,
   criteria,
   explainFailures,
-}: Omit<JevAssertionOptions, 'threshold'> & {
+}: {
   client: JevClient;
   prompt: string;
   messages: Array<Message>;
   threshold: number;
+  criteria?: JevCriteria;
+  explainFailures?: Judge;
 }): Promise<CriterionResult<boolean>> {
   const conversation = messages.flatMap(formatMessage).join('\n');
 
   let probability: number;
   try {
-    const answer = await client.noul({
+    const answer = await client.probability({
       state: { conversation },
       instructions: prompt,
       ...(criteria ? { criteria } : {}),
