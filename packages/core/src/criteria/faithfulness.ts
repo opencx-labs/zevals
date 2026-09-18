@@ -27,7 +27,11 @@ export function faithfulnessCriterion(params: {
       const {
         output: { claims },
       } = await params.judge.invoke({
-        schema: z.object({ claims: z.array(z.string()) }),
+        schema: z.object({
+          claims: z
+            .array(z.string())
+            .describe('Each factual claim in the text, as a standalone sentence.'),
+        }),
         messages: [
           {
             role: 'system',
@@ -45,14 +49,20 @@ export function faithfulnessCriterion(params: {
         schema: z.object({
           results: z
             .object({
-              clain_index: z.number(),
-              supported: z.boolean(),
+              claim_index: z.number().describe('The N of the "[Claim N]" being judged.'),
+              supported: z
+                .boolean()
+                .describe('True only if the context states or directly implies the claim.'),
             })
             .array(),
         }),
 
         messages: [
-          { role: 'system', content: 'Verify claims against context.' },
+          {
+            role: 'system',
+            content:
+              'For each claim, decide whether the context supports it. A claim the context does not mention is unsupported, even if it is true in general. Return one result per claim.',
+          },
           {
             role: 'user',
             content: `
@@ -74,7 +84,7 @@ export function faithfulnessCriterion(params: {
         status: score > (params.scoreThreshold ?? 1) ? 'success' : 'failure',
         output: {
           results: results.map((r) => ({
-            claim: claims[r.clain_index],
+            claim: claims[r.claim_index],
             supported: r.supported,
           })),
         },
