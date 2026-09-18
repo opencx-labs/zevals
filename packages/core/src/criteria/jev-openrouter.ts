@@ -67,19 +67,27 @@ export function openRouterJevClient(
 /** Max characters of an error response body kept in the thrown error (and so in test logs). */
 const ERROR_BODY_LIMIT = 500;
 
-/** Reads at most {@link ERROR_BODY_LIMIT} characters of the body, whitespace-collapsed. */
+/**
+ * Reads at most {@link ERROR_BODY_LIMIT} characters of the body, whitespace-collapsed.
+ * Best effort: a failing stream yields what was read so far, never an error that would
+ * replace the HTTP status in the caller's message.
+ */
 async function bodyExcerpt(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return '';
 
   const decoder = new TextDecoder();
   let text = '';
-  while (text.length <= ERROR_BODY_LIMIT) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    text += decoder.decode(value, { stream: true });
+  try {
+    while (text.length <= ERROR_BODY_LIMIT) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    await reader.cancel();
+  } catch {
+    // Keep whatever was read; the status code is what matters.
   }
-  await reader.cancel();
 
   text = text.replace(/\s+/g, ' ').trim();
 

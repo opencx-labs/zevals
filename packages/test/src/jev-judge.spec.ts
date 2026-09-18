@@ -300,6 +300,19 @@ describe('openRouterJevClient', () => {
     expect(message.length).toBeLessThan(600);
   });
 
+  it('keeps the HTTP status when the error body stream fails', async () => {
+    const body = new ReadableStream({
+      pull(controller) {
+        controller.error(new Error('socket hang up'));
+      },
+    });
+    const { client } = mockedClient(new Response(body, { status: 503 }));
+
+    await expect(client.noul({ state: {}, instructions: 'x' })).rejects.toThrow(
+      /^OpenRouter decisions request failed: 503/,
+    );
+  });
+
   it('throws on a malformed response body', async () => {
     const { client } = mockedClient(
       Response.json({ answers: { q0: { type: 'noul', probability: 0.4 } } }),
