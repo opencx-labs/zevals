@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Judge } from '../eval-runner';
+import { formatMessage } from '../format';
 import { Criterion, CriterionEvaluationParams, CriterionResult } from './criterion';
 
 type FaithfulnessCriterionResult = {
@@ -20,8 +21,8 @@ export function faithfulnessCriterion(params: {
       const lastMessage = messages[messages.length - 1];
       const context = messages
         .slice(0, messages.length - 1)
-        .map((m) => m.role + ': ' + m.content.toString())
-        .join('\n\n');
+        .flatMap(formatMessage)
+        .join('\n');
 
       const {
         output: { claims },

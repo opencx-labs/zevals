@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Judge } from '../eval-runner';
+import { formatMessage } from '../format';
 import {
   Criterion,
   CriterionEvaluationParams,
@@ -74,11 +75,7 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
 
     Conversation between AI and user:
     <conversation>
-    ${params.messages
-      .map((message) => {
-        return `<${message.role}>${message.content.toString()}</${message.role}>`;
-      })
-      .join('\n\n')}
+    ${params.messages.flatMap(formatMessage).join('\n')}
     </conversation>
     `;
 
