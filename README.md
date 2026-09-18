@@ -226,7 +226,7 @@ A `SyntheticUser` can also return `context` on its messages; `userSimulation` pr
 
 ## Scoping Assertions
 
-By default, criteria see the full transcript. To judge only the agent's latest turn (everything after the last user message), pass `scope` to `aiAssertion` / `jevAssertion`, or wrap any criterion with `Criterion.scoped`:
+By default, criteria see the full transcript. To judge only the agent's latest turn (everything after the last user message), pass `scope` to `aiAssertion`, or wrap any criterion with `Criterion.scoped`:
 
 ```typescript
 zevals.aiAssertion({ judge, prompt: 'The agent transferred the chat', scope: 'lastAssistantTurn' });
@@ -236,9 +236,9 @@ zevals.Criterion.scoped({ criterion: myCriterion, scope: 'lastAssistantTurn' });
 
 For conditions that should not rely on a judge at all (e.g. "the handoff tool was actually called"), remember that `until` accepts any `Criterion` — including `aiToolsCalled` / `aiToolCalls` — and criteria compose with `Criterion.and` / `Criterion.negate`.
 
-## Probabilistic Assertions with Jev
+## Jev as the Judge
 
-`jevAssertion` is a drop-in alternative to `aiAssertion` that decides the verdict with TypeSafe's [Jev](https://docs.typesafe.ai) model instead of an LLM judge. Jev answers a yes/no question about the transcript with a calibrated probability and no text; the assertion passes when that probability is at or above `threshold` (default `0.5`).
+`aiAssertion`'s `judge` can be an LLM `Judge` or a `JevClient` for TypeSafe's [Jev](https://docs.typesafe.ai) model. Jev answers a yes/no question about the transcript with a calibrated probability and no text; the assertion passes when that probability is at or above `threshold` (default `0.5`).
 
 ```typescript
 import zevals from '@zevals/core';
@@ -246,11 +246,11 @@ import zevals from '@zevals/core';
 const client = zevals.openRouterJevClient(); // reads OPENROUTER_API_KEY
 
 zevals.aiEval(
-  zevals.jevAssertion({
-    client,
+  zevals.aiAssertion({
+    judge: client,
     prompt: 'The agent transferred the chat to a human',
     scope: 'lastAssistantTurn',
-    // Optional:
+    // Jev-only, optional:
     threshold: 0.5,
     criteria: { true: 'A handoff was performed', false: 'The agent only promised a handoff' },
     explainFailures: judge, // any zevals Judge; called on failures only
@@ -266,7 +266,7 @@ Why use it:
 
 **The `reason` trade-off.** Jev produces no prose, so `reason` only reports the probability, e.g. `jev p=0.13 (threshold 0.5)`. If you want an explanation, pass `explainFailures`: that judge is called **only when the assertion fails**, and its explanation is appended to `reason`. Passing assertions, the vast majority in a healthy suite, never pay for an LLM call.
 
-Errors (network failures, non-2xx responses, malformed or out-of-range probabilities) are returned as `CriterionResult.error` with a failed status. They never count as a pass. If `explainFailures` itself throws, the failing verdict stands and the error is attached.
+With a Jev judge, errors (network failures, non-2xx responses, malformed or out-of-range probabilities) are returned as `CriterionResult.error` with a failed status. They never count as a pass. If `explainFailures` itself throws, the failing verdict stands and the error is attached.
 
 `JevClient` is a one-method interface (`noul({ state, instructions, criteria }) => { probability }`), so you can implement it over any transport. `openRouterJevClient` uses OpenRouter's **alpha** decisions endpoint (`POST /api/alpha/decisions`, model `typesafe/jev-1.13`), which may change. The model has a 32k-token context limit, so scope long transcripts or they will be rejected.
 

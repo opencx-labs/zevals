@@ -1,4 +1,4 @@
-import { jevAssertion, JevClient, Judge, Message, openRouterJevClient } from '@zevals/core';
+import { aiAssertion, JevClient, Judge, Message, openRouterJevClient } from '@zevals/core';
 
 type NoulParams = Parameters<JevClient['noul']>[0];
 
@@ -35,11 +35,16 @@ const transcript: Array<Message> = [
   { role: 'assistant', content: 'Second answer' },
 ];
 
-function run(options: Omit<Parameters<typeof jevAssertion>[0], 'prompt'>) {
-  return jevAssertion({ prompt: 'Answered', ...options }).evaluate({ messages: transcript });
+function run({
+  client,
+  ...options
+}: Omit<Parameters<typeof aiAssertion>[0], 'prompt' | 'judge'> & { client: JevClient }) {
+  return aiAssertion({ prompt: 'Answered', judge: client, ...options }).evaluate({
+    messages: transcript,
+  });
 }
 
-describe('jevAssertion', () => {
+describe('aiAssertion with a Jev judge', () => {
   it.each([
     { probability: 0.7, status: 'success', output: true },
     { probability: 0.5, status: 'success', output: true },
@@ -67,7 +72,7 @@ describe('jevAssertion', () => {
   });
 
   it('rejects an out-of-range threshold', () => {
-    expect(() => jevAssertion({ prompt: 'x', client: fakeClient(0.5), threshold: 1.5 })).toThrow(
+    expect(() => aiAssertion({ prompt: 'x', judge: fakeClient(0.5), threshold: 1.5 })).toThrow(
       RangeError,
     );
   });
@@ -98,7 +103,7 @@ describe('jevAssertion', () => {
   it('includes assistant tool calls in the transcript', async () => {
     const client = fakeClient(0.9);
 
-    await jevAssertion({ prompt: 'Handed off', client }).evaluate({
+    await aiAssertion({ prompt: 'Handed off', judge: client }).evaluate({
       messages: [
         {
           role: 'assistant',

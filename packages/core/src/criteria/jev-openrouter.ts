@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { JevClient } from './jev-assertion';
+import { JevClient } from './jev';
 
 /*
  * OpenRouter's decisions API. Verified 2026-09-18. Caveats:
