@@ -59,12 +59,12 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
         messages: scopeMessages({ messages: rawParams.messages, scope: options.scope }),
       };
       const instructions = `
-    You are a judge.
+    You are a judge. A developer testing an AI assistant has written an assertion about a
+    conversation between the assistant and a user. Decide whether the assertion is true of that
+    conversation.
 
-    You evaluate the truth value of an assertion based on a given prompt.
-    The prompt is a statement about a conversation between the AI assistant and the user.
-
-    You need to determine if the response is a correct answer to the prompt.
+    In the conversation, each line starts with the speaker's role. "[tool call]" lines are tools the
+    assistant called, and "[tool:name]" lines are the results those tools returned.
     `;
 
       const input = `
