@@ -268,7 +268,29 @@ Why use it:
 
 With a Jev judge, errors (network failures, non-2xx responses, malformed or out-of-range probabilities) are returned as `CriterionResult.error` with a failed status. They never count as a pass. If `explainFailures` itself throws, the failing verdict stands and the error is attached.
 
-`JevClient` is a small interface (`{ kind: 'jev', probability({ state, instructions, criteria }) => { probability } }`), so you can implement it over any transport. The `kind` marker is how `aiAssertion` tells it apart from an LLM judge, and passing `threshold`, `criteria` or `explainFailures` with an LLM judge is a type error. `openRouterJevClient` uses OpenRouter's **alpha** decisions endpoint (`POST /api/alpha/decisions`, model `typesafe/jev-1.13`), which may change. The model has a 32k-token context limit, so scope long transcripts or they will be rejected.
+### Providers
+
+Jev is reachable through several gateways, and each names the same yes/no question differently. Three clients are bundled, all of them plain `fetch` with no extra dependencies:
+
+| Client                  | Endpoint                                                        | Credentials                                     | Default model       |
+| ----------------------- | --------------------------------------------------------------- | ----------------------------------------------- | ------------------- |
+| `openRouterJevClient()` | `POST https://openrouter.ai/api/alpha/decisions`                | `OPENROUTER_API_KEY`                            | `typesafe/jev-1.13` |
+| `vercelJevClient()`     | `POST https://ai-gateway.vercel.sh/v1/evaluate`                 | `AI_GATEWAY_API_KEY`                            | `typesafe-ai/jev`   |
+| `cloudflareJevClient()` | `POST https://api.cloudflare.com/client/v4/accounts/:id/ai/run` | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | `typesafe/jev`      |
+
+```typescript
+const client = zevals.vercelJevClient(); // reads AI_GATEWAY_API_KEY
+// or
+const client = zevals.cloudflareJevClient({ model: 'typesafe/jev' });
+```
+
+They are interchangeable: each returns a `JevClient`, so swapping providers is a one-line change and every `aiAssertion` keeps working. Each takes `model`, `fetch` and (except OpenRouter) `baseUrl`, so you can pin a version, inject a stub in tests, or point at a proxy.
+
+Two provider quirks are worth knowing. **Vercel** calls the question type `boolean` and the answer `probability`, not `noul` — the clients hide this, but it matters if you read the raw HTTP; its `typesafe-ai/jev` id is also not version-pinned, and thresholds are calibrated per version, so pin `model` when Vercel exposes a versioned id. **Cloudflare** puts the model in the path rather than the body, and inside a Worker there is no API token to send — implement `JevClient` over `env.AI.run('typesafe/jev', { state, questions })` directly instead.
+
+> **`cloudflareJevClient` is provisional.** Its wire shape was assembled from Cloudflare's docs and has not been confirmed against a live account, unlike the other two. If a call fails, compare it with `POST /accounts/:id/ai/run/:model` and open an issue.
+
+`JevClient` is a small interface (`{ kind: 'jev', probability({ state, instructions, criteria }) => { probability } }`), so you can implement it over any transport, including TypeSafe's own `POST https://api.typesafe.ai/v1/systemone`. The `kind` marker is how `aiAssertion` tells it apart from an LLM judge, and passing `threshold`, `criteria` or `explainFailures` with an LLM judge is a type error. OpenRouter's decisions path is **alpha** and may change. Jev has a 32k-token context limit on every provider, so scope long transcripts or they will be rejected.
 
 ## Repeated Runs
 
