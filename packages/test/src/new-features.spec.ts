@@ -188,6 +188,27 @@ describe('criterion scoping', () => {
     expect(seen[0].map((m) => m.content)).toEqual([{ found: true }, 'Second answer']);
   });
 
+  it('asks the judge to reason before it commits to a verdict', async () => {
+    // Field order is behaviour, not style: a schema with `verdict` first makes the model
+    // emit the boolean before any reasoning, and it was observed returning a verdict that
+    // its own `reason` then contradicted.
+    let keys: Array<string> = [];
+
+    const judge: Judge = {
+      async invoke({ schema }) {
+        keys = Object.keys(schema.shape);
+
+        return { output: schema.parse({ verdict: true, reason: null }) };
+      },
+    };
+
+    await aiAssertion({ judge, prompt: 'The assistant answered' }).evaluate({
+      messages: [{ role: 'assistant', content: 'Yes' }],
+    });
+
+    expect(keys).toEqual(['reason', 'verdict']);
+  });
+
   it('aiAssertion scope limits what the judge sees', async () => {
     const prompts: Array<string> = [];
 

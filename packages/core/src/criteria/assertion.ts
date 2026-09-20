@@ -87,14 +87,17 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
           { role: 'user', content: input },
         ],
         schema: z.object({
-          verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
-
+          // `reason` is first on purpose: the judge must state its reasoning before it
+          // commits to a boolean. With `verdict` first, the model has been observed to
+          // emit a verdict and then reason its way to the opposite conclusion.
           reason: z
             .string()
             .nullable()
             .describe(
               'Brief explanation of the verdict, citing the relevant parts of the conversation. Especially important when the assertion fails.',
             ),
+
+          verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
         }),
       });
 
