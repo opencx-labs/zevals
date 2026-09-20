@@ -336,6 +336,10 @@ describe('openRouterJevClient', () => {
 });
 
 describe('vercelJevClient', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function mockedClient(response: Response, options: Parameters<typeof vercelJevClient>[0] = {}) {
     const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
 
@@ -415,6 +419,8 @@ describe('vercelJevClient', () => {
   });
 
   it('reports a missing API key without calling fetch', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', undefined);
+
     const client = vercelJevClient({
       fetch: () => Promise.reject(new Error('should not be called')),
     });
@@ -426,6 +432,10 @@ describe('vercelJevClient', () => {
 });
 
 describe('cloudflareJevClient', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function mockedClient(
     response: Response,
     options: Parameters<typeof cloudflareJevClient>[0] = {},
@@ -465,24 +475,34 @@ describe('cloudflareJevClient', () => {
     });
 
     expect(answer).toEqual({ probability: 0.95 });
-    expect(calls[0].url).toBe('https://api.cloudflare.com/client/v4/accounts/acct-test/ai/run');
+    expect(calls[0].url).toBe(
+      'https://api.cloudflare.com/client/v4/accounts/acct-test/ai/run/typesafe/jev',
+    );
     expect(calls[0].init?.headers).toEqual({
       authorization: 'Bearer cf-test',
       'content-type': 'application/json',
     });
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({
-      model: 'typesafe/jev',
-      input: {
-        state: { conversation: 'user: hi' },
-        questions: {
-          q0: {
-            type: 'noul',
-            instructions: 'The assistant greeted the user',
-            criteria: { true: 'A greeting was given' },
-          },
+      state: { conversation: 'user: hi' },
+      questions: {
+        q0: {
+          type: 'noul',
+          instructions: 'The assistant greeted the user',
+          criteria: { true: 'A greeting was given' },
         },
       },
     });
+  });
+
+  it('puts a custom model in the path', async () => {
+    const { calls, client } = mockedClient(
+      Response.json({ answers: { q0: { type: 'noul', noul: 0.5 } } }),
+      { model: 'typesafe/jev-1.13', baseUrl: 'https://cf.example.com' },
+    );
+
+    await client.probability({ state: {}, instructions: 'x' });
+
+    expect(calls[0].url).toBe('https://cf.example.com/accounts/acct-test/ai/run/typesafe/jev-1.13');
   });
 
   it('also reads an answer that is not wrapped in the /client/v4 envelope', async () => {
@@ -504,6 +524,8 @@ describe('cloudflareJevClient', () => {
   });
 
   it('reports a missing account id before a missing token', async () => {
+    vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', undefined);
+
     const client = cloudflareJevClient({
       apiToken: 'cf-test',
       fetch: () => Promise.reject(new Error('should not be called')),
@@ -515,6 +537,8 @@ describe('cloudflareJevClient', () => {
   });
 
   it('reports a missing API token', async () => {
+    vi.stubEnv('CLOUDFLARE_API_TOKEN', undefined);
+
     const client = cloudflareJevClient({
       accountId: 'acct-test',
       fetch: () => Promise.reject(new Error('should not be called')),
@@ -523,6 +547,62 @@ describe('cloudflareJevClient', () => {
     await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
       'Cloudflare API token missing: pass apiToken or set CLOUDFLARE_API_TOKEN',
     );
+  });
+});
+
+describe('Jev client credentials', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('falls back to the environment when the option is omitted', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'from-env');
+    const calls: Array<RequestInit | undefined> = [];
+
+    const client = vercelJevClient({
+      fetch: async (_input, init) => {
+        calls.push(init);
+        return Response.json({ answers: { q0: { type: 'boolean', probability: 0.6 } } });
+      },
+    });
+
+    expect(await client.probability({ state: {}, instructions: 'x' })).toEqual({
+      probability: 0.6,
+    });
+    expect(calls[0]?.headers).toMatchObject({ authorization: 'Bearer from-env' });
+  });
+
+  it('prefers an explicit option over the environment', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'from-env');
+    const calls: Array<RequestInit | undefined> = [];
+
+    const client = vercelJevClient({
+      apiKey: 'explicit',
+      fetch: async (_input, init) => {
+        calls.push(init);
+        return Response.json({ answers: { q0: { type: 'boolean', probability: 0.6 } } });
+      },
+    });
+
+    await client.probability({ state: {}, instructions: 'x' });
+
+    expect(calls[0]?.headers).toMatchObject({ authorization: 'Bearer explicit' });
+  });
+
+  it('picks up a global fetch patched after the client was built', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'from-env');
+    const client = vercelJevClient();
+    const original = globalThis.fetch;
+
+    globalThis.fetch = async () =>
+      Response.json({ answers: { q0: { type: 'boolean', probability: 0.77 } } });
+    try {
+      expect(await client.probability({ state: {}, instructions: 'x' })).toEqual({
+        probability: 0.77,
+      });
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });
 

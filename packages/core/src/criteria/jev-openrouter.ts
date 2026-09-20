@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { JevClient } from './jev';
-import { postJson, QUESTION_KEY, requireCredential } from './jev-http';
+import { postJson, QUESTION_KEY, requireCredential, resolveFetch } from './jev-http';
 
 /*
  * OpenRouter's decisions API. Verified 2026-09-18. Caveats:
@@ -32,8 +32,6 @@ export function openRouterJevClient(
     fetch?: typeof fetch;
   } = {},
 ): JevClient {
-  const doFetch = options.fetch ?? fetch;
-
   return {
     kind: 'jev',
 
@@ -49,7 +47,7 @@ export function openRouterJevClient(
         url: DECISIONS_URL,
         token,
         label: 'OpenRouter decisions',
-        fetch: doFetch,
+        fetch: resolveFetch(options.fetch),
         body: {
           model: options.model ?? DEFAULT_MODEL,
           state,

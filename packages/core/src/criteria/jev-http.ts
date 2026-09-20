@@ -13,6 +13,15 @@ export const QUESTION_KEY = 'q0';
 /** Max characters of an error response body kept in the thrown error (and so in test logs). */
 const ERROR_BODY_LIMIT = 500;
 
+/**
+ * Reads an environment variable where one exists. `process` is absent in Workers,
+ * browsers and Deno, and these clients are meant to run there, so a bare
+ * `process.env` would replace the intended error with a `ReferenceError`.
+ */
+function readEnv(name: string): string | undefined {
+  return typeof process === 'undefined' ? undefined : process.env?.[name];
+}
+
 /** Reads a required credential from an option or the environment. */
 export function requireCredential({
   value,
@@ -25,12 +34,27 @@ export function requireCredential({
   envVar: string;
   provider: string;
 }): string {
-  const credential = value ?? process.env[envVar];
+  const credential = value ?? readEnv(envVar);
   if (!credential) {
     throw new Error(`${provider} missing: pass ${option} or set ${envVar}`);
   }
 
   return credential;
+}
+
+/**
+ * Resolves the `fetch` to use, at call time rather than when the client is built, so a
+ * test harness that patches `globalThis.fetch` after construction still takes effect.
+ * Bound to `globalThis`: a detached browser `fetch` throws `Illegal invocation`.
+ */
+export function resolveFetch(override: typeof fetch | undefined): typeof fetch {
+  if (override) return override;
+
+  if (typeof globalThis.fetch !== 'function') {
+    throw new Error('No global fetch is available: pass fetch');
+  }
+
+  return globalThis.fetch.bind(globalThis);
 }
 
 /**

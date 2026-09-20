@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { JevClient } from './jev';
-import { postJson, QUESTION_KEY, requireCredential } from './jev-http';
+import { postJson, QUESTION_KEY, requireCredential, resolveFetch } from './jev-http';
 
 /*
  * Vercel AI Gateway's evaluation API. Shape taken from Vercel's docs on 2026-09-20
@@ -37,8 +37,6 @@ export function vercelJevClient(
     fetch?: typeof fetch;
   } = {},
 ): JevClient {
-  const doFetch = options.fetch ?? fetch;
-
   return {
     kind: 'jev',
 
@@ -54,7 +52,7 @@ export function vercelJevClient(
         url: `${options.baseUrl ?? DEFAULT_BASE_URL}/v1/evaluate`,
         token,
         label: 'Vercel AI Gateway evaluate',
-        fetch: doFetch,
+        fetch: resolveFetch(options.fetch),
         body: {
           model: options.model ?? DEFAULT_MODEL,
           state,

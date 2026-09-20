@@ -1,16 +1,20 @@
 import { z } from 'zod';
 import { JevClient } from './jev';
-import { postJson, QUESTION_KEY, requireCredential } from './jev-http';
+import { postJson, QUESTION_KEY, requireCredential, resolveFetch } from './jev-http';
 
 /*
- * Cloudflare Workers AI. Shape taken from Cloudflare's docs on 2026-09-20
- * (`/ai/models/typesafe/jev/`), not yet verified against a live account. Caveats:
- * - The model id is `typesafe/jev` and the request nests `state` and `questions`
- *   under `input`, unlike every other provider, which puts them at the top level.
+ * Cloudflare Workers AI. Assembled from Cloudflare's docs on 2026-09-20 and **not yet
+ * verified against a live account**, so treat the wire shape as provisional. Caveats:
+ * - Workers AI runs a model at `POST /accounts/{id}/ai/run/{model}`, with the model in
+ *   the path and its inputs at the top level of the body. The `env.AI.run(model, inputs)`
+ *   binding is the same call, which is why `env.AI.run('typesafe/jev', { state, questions })`
+ *   fixes the body as `{ state, questions }`.
+ * - A second form, `POST /ai/run` with `model` in the body, exists for routing through AI
+ *   Gateway and wants a `cf-aig-gateway-id` header. This client uses the model-in-path form.
  * - The question `type` is `noul` and the answer field is `noul`, as on OpenRouter.
- * - `/client/v4` normally wraps success bodies in `{ result, success, errors }`, while
- *   the model docs show the answer unwrapped. Both are accepted below, so whichever
- *   the account returns, the probability is read correctly.
+ * - `/client/v4` normally wraps success bodies in `{ result, success, errors }`, while the
+ *   model docs show the answer unwrapped. Both are accepted below, so whichever the
+ *   account returns, the probability is read correctly.
  * - Inside a Worker there is no API token to send: implement {@link JevClient} over
  *   `env.AI.run('typesafe/jev', { state, questions })` instead of using this client.
  */
@@ -41,8 +45,6 @@ export function cloudflareJevClient(
     fetch?: typeof fetch;
   } = {},
 ): JevClient {
-  const doFetch = options.fetch ?? fetch;
-
   return {
     kind: 'jev',
 
@@ -60,17 +62,16 @@ export function cloudflareJevClient(
         provider: 'Cloudflare API token',
       });
 
+      const model = options.model ?? DEFAULT_MODEL;
+
       const body = await postJson({
-        url: `${options.baseUrl ?? DEFAULT_BASE_URL}/accounts/${accountId}/ai/run`,
+        url: `${options.baseUrl ?? DEFAULT_BASE_URL}/accounts/${accountId}/ai/run/${model}`,
         token,
         label: 'Cloudflare Workers AI run',
-        fetch: doFetch,
+        fetch: resolveFetch(options.fetch),
         body: {
-          model: options.model ?? DEFAULT_MODEL,
-          input: {
-            state,
-            questions: { [QUESTION_KEY]: { type: 'noul', instructions, criteria } },
-          },
+          state,
+          questions: { [QUESTION_KEY]: { type: 'noul', instructions, criteria } },
         },
       });
 
