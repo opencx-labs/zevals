@@ -193,12 +193,14 @@ describe('criterion scoping', () => {
     // emit the boolean before any reasoning, and it was observed returning a verdict that
     // its own `reason` then contradicted.
     let keys: Array<string> = [];
+    let rejectsNullReason = false;
 
     const judge: Judge = {
       async invoke({ schema }) {
         keys = Object.keys(schema.shape);
+        rejectsNullReason = !schema.safeParse({ verdict: true, reason: null }).success;
 
-        return { output: schema.parse({ verdict: true, reason: null }) };
+        return { output: schema.parse({ verdict: true, reason: 'ok' }) };
       },
     };
 
@@ -207,6 +209,9 @@ describe('criterion scoping', () => {
     });
 
     expect(keys).toEqual(['reason', 'verdict']);
+    // Required, not just first: a nullable reason lets the judge skip straight to the
+    // verdict, which is the guess this ordering exists to prevent.
+    expect(rejectsNullReason).toBe(true);
   });
 
   it('aiAssertion scope limits what the judge sees', async () => {
@@ -216,7 +221,7 @@ describe('criterion scoping', () => {
       async invoke({ messages, schema }) {
         prompts.push(userContent(messages));
 
-        return { output: schema.parse({ verdict: true, reason: null }) };
+        return { output: schema.parse({ verdict: true, reason: 'ok' }) };
       },
     };
 
@@ -265,7 +270,7 @@ describe('judge requests', () => {
   }
 
   it('aiAssertion sends instructions as system and the transcript, with tool activity, as user', async () => {
-    const { judge, requests } = recordingJudge([{ verdict: true, reason: null }]);
+    const { judge, requests } = recordingJudge([{ verdict: true, reason: 'ok' }]);
 
     await aiAssertion({ judge, prompt: 'The order was cancelled' }).evaluate({
       messages: withTools,
