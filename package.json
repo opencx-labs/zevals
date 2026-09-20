@@ -7,7 +7,7 @@
     "build": "pnpm -r build",
     "test": "pnpm build && vitest run",
     "update-version": "node scripts/update-version.js",
-    "publish-packages": "pnpm update-version && pnpm i && pnpm test && pnpm -r pub"
+    "publish-packages": "pnpm update-version && pnpm i && pnpm test && node scripts/publish-packages.js"
   },
   "keywords": [
     "ai",

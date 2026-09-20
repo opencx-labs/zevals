@@ -26,7 +26,8 @@ npx prettier --write <files>   # singleQuote, trailingComma all, printWidth 100
 
 - **Tests import `@zevals/core` from `packages/core/dist`, not from source.** After changing core, rebuild it (`cd packages/core && npx tsc -p .`) before running tests, or they will run against the old build.
 - **Builds are incremental (`composite` + `tsconfig.tsbuildinfo`).** If you delete a package's `dist`, delete its `tsconfig.tsbuildinfo` too. Otherwise `tsc` only re-emits changed files and leaves `dist` half-built.
-- **`pnpm -r build` / `pnpm install` can stop with `ERR_PNPM_IGNORED_BUILDS` (esbuild).** It may write an `allowBuilds` placeholder into `pnpm-workspace.yaml`; revert that. Building a package directly with `npx tsc -p .` avoids it.
+- **`pnpm-workspace.yaml` allows esbuild's install script (`allowBuilds: esbuild: true`).** Without it, `pnpm -r build` / `pnpm install` stop with `ERR_PNPM_IGNORED_BUILDS`. Keep that entry.
+- **`vite.config.mts` excludes `**/dist/**`.** Vitest 4 no longer does by default, and compiled specs would run alongside their sources (the tau-bench spec then fails with `EADDRINUSE`).
 - **ESLint isn't runnable as configured:** the repo has a legacy `.eslintrc.js`, but ESLint 9 needs `eslint.config.*`. Prettier and `tsc` are the checks that actually run.
 - **Some tests hit live LLMs.** The `eval-runner.spec.ts`, `autoevals.spec.ts`, `faithfulness.spec.ts` and `examples/` tests need `OPENAI_API_KEY`. Vitest loads `.env` from the root (`vite.config.mts`). `new-features.spec.ts` and `jev-judge.spec.ts` are fully mocked.
 
@@ -60,5 +61,5 @@ Eval promises from `aiEval` are awaited together at the end, so criteria run con
 - In `@zevals/core`: no `any`, no `as` casts and no non-null assertions in new code. Parse untrusted data (LLM/HTTP responses) with zod. (Some older code still uses `any`/`as`.)
 - Tests live in `packages/test/src/*.spec.ts` and use vitest globals. Mock at the injected interface (`Judge`, `JevClient`, `fetch`) instead of calling live services.
 - The root `README.md` is the real documentation, and each package's `npm.README.md` just links to it. Document new criteria and segments there.
-- Releases: `pnpm publish-packages` syncs every package's version from the root `package.json` (`scripts/update-version.js`), then tests and publishes. Do not bump package versions by hand.
+- Releases: `pnpm publish-packages` syncs every package's version from the root `package.json` (`scripts/update-version.js`), then tests and publishes (`scripts/publish-packages.js`: one package at a time, core first, skipping versions already on npm). npm asks for 2FA per package, so run it from an interactive terminal; it cannot work from a non-interactive shell or via `pnpm -r`. Do not bump package versions by hand.
 - The GitHub repo is `opencx-labs/zevals` (formerly `openchatai/zevals`). Greptile reviews PRs there.

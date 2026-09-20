@@ -13,6 +13,8 @@ describe('Autoevals', () => {
           input: messages[0].content.toString(),
           output: messages[1].content.toString(),
           expected: 'Paris',
+          // autoevals defaults to the Braintrust proxy, which rejects plain OpenAI keys
+          openAiBaseUrl: 'https://api.openai.com/v1',
         }),
     });
 
