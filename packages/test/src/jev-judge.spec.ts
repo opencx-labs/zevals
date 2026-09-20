@@ -1,11 +1,13 @@
 import {
   aiAssertion,
+  cloudflareJevClient,
   CriterionScope,
   JevAssertionOptions,
   JevClient,
   Judge,
   Message,
   openRouterJevClient,
+  vercelJevClient,
 } from '@zevals/core';
 
 type NoulParams = Parameters<JevClient['probability']>[0];
@@ -330,5 +332,226 @@ describe('openRouterJevClient', () => {
 
     expect(result).toMatchObject({ status: 'failure', output: false });
     expect(String(result.error)).toContain('500');
+  });
+});
+
+describe('vercelJevClient', () => {
+  function mockedClient(response: Response, options: Parameters<typeof vercelJevClient>[0] = {}) {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+
+    const client = vercelJevClient({
+      apiKey: 'vck-test',
+      ...options,
+      fetch: async (input, init) => {
+        calls.push({ url: String(input), init });
+        return response;
+      },
+    });
+
+    return { calls, client };
+  }
+
+  it('posts a boolean question to /v1/evaluate and returns the probability', async () => {
+    const { calls, client } = mockedClient(
+      Response.json({
+        model: 'typesafe-ai/jev',
+        answers: { q0: { type: 'boolean', probability: 0.98 } },
+        usage: { inputTokens: 275, outputTokens: 20 },
+        providerMetadata: { gateway: { cost: '0.00001155' } },
+      }),
+    );
+
+    const answer = await client.probability({
+      state: { conversation: 'user: hi' },
+      instructions: 'The assistant greeted the user',
+      criteria: { true: 'A greeting was given' },
+    });
+
+    expect(answer).toEqual({ probability: 0.98 });
+    expect(calls[0].url).toBe('https://ai-gateway.vercel.sh/v1/evaluate');
+    expect(calls[0].init?.headers).toEqual({
+      authorization: 'Bearer vck-test',
+      'content-type': 'application/json',
+    });
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      model: 'typesafe-ai/jev',
+      state: { conversation: 'user: hi' },
+      questions: {
+        q0: {
+          type: 'boolean',
+          instructions: 'The assistant greeted the user',
+          criteria: { true: 'A greeting was given' },
+        },
+      },
+    });
+  });
+
+  it('honours a custom model and base URL', async () => {
+    const { calls, client } = mockedClient(
+      Response.json({ answers: { q0: { type: 'boolean', probability: 0.5 } } }),
+      { model: 'typesafe-ai/jev-1.13', baseUrl: 'https://gateway.example.com' },
+    );
+
+    await client.probability({ state: {}, instructions: 'x' });
+
+    expect(calls[0].url).toBe('https://gateway.example.com/v1/evaluate');
+    expect(JSON.parse(String(calls[0].init?.body)).model).toBe('typesafe-ai/jev-1.13');
+  });
+
+  it('throws on a non-2xx response', async () => {
+    const { client } = mockedClient(new Response('context too long', { status: 400 }));
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
+      /^Vercel AI Gateway evaluate request failed: 400 context too long$/,
+    );
+  });
+
+  it('rejects a noul-shaped answer, which this endpoint never returns', async () => {
+    const { client } = mockedClient(
+      Response.json({ answers: { q0: { type: 'noul', noul: 0.4 } } }),
+    );
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow();
+  });
+
+  it('reports a missing API key without calling fetch', async () => {
+    const client = vercelJevClient({
+      fetch: () => Promise.reject(new Error('should not be called')),
+    });
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
+      'Vercel AI Gateway API key missing: pass apiKey or set AI_GATEWAY_API_KEY',
+    );
+  });
+});
+
+describe('cloudflareJevClient', () => {
+  function mockedClient(
+    response: Response,
+    options: Parameters<typeof cloudflareJevClient>[0] = {},
+  ) {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+
+    const client = cloudflareJevClient({
+      accountId: 'acct-test',
+      apiToken: 'cf-test',
+      ...options,
+      fetch: async (input, init) => {
+        calls.push({ url: String(input), init });
+        return response;
+      },
+    });
+
+    return { calls, client };
+  }
+
+  it('posts a noul question nested under input and returns the probability', async () => {
+    const { calls, client } = mockedClient(
+      Response.json({
+        result: {
+          model: 'jev-1.13.0',
+          answers: { q0: { type: 'noul', noul: 0.95 } },
+          usage: { input_tokens: 426, output_tokens: 73 },
+        },
+        success: true,
+        errors: [],
+      }),
+    );
+
+    const answer = await client.probability({
+      state: { conversation: 'user: hi' },
+      instructions: 'The assistant greeted the user',
+      criteria: { true: 'A greeting was given' },
+    });
+
+    expect(answer).toEqual({ probability: 0.95 });
+    expect(calls[0].url).toBe('https://api.cloudflare.com/client/v4/accounts/acct-test/ai/run');
+    expect(calls[0].init?.headers).toEqual({
+      authorization: 'Bearer cf-test',
+      'content-type': 'application/json',
+    });
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      model: 'typesafe/jev',
+      input: {
+        state: { conversation: 'user: hi' },
+        questions: {
+          q0: {
+            type: 'noul',
+            instructions: 'The assistant greeted the user',
+            criteria: { true: 'A greeting was given' },
+          },
+        },
+      },
+    });
+  });
+
+  it('also reads an answer that is not wrapped in the /client/v4 envelope', async () => {
+    const { client } = mockedClient(
+      Response.json({ answers: { q0: { type: 'noul', noul: 0.12 } } }),
+    );
+
+    expect(await client.probability({ state: {}, instructions: 'x' })).toEqual({
+      probability: 0.12,
+    });
+  });
+
+  it('throws on a non-2xx response', async () => {
+    const { client } = mockedClient(new Response('{"errors":[{"code":7003}]}', { status: 404 }));
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
+      /^Cloudflare Workers AI run request failed: 404 /,
+    );
+  });
+
+  it('reports a missing account id before a missing token', async () => {
+    const client = cloudflareJevClient({
+      apiToken: 'cf-test',
+      fetch: () => Promise.reject(new Error('should not be called')),
+    });
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
+      'Cloudflare account id missing: pass accountId or set CLOUDFLARE_ACCOUNT_ID',
+    );
+  });
+
+  it('reports a missing API token', async () => {
+    const client = cloudflareJevClient({
+      accountId: 'acct-test',
+      fetch: () => Promise.reject(new Error('should not be called')),
+    });
+
+    await expect(client.probability({ state: {}, instructions: 'x' })).rejects.toThrow(
+      'Cloudflare API token missing: pass apiToken or set CLOUDFLARE_API_TOKEN',
+    );
+  });
+});
+
+describe('every bundled Jev client', () => {
+  it('works as an aiAssertion judge, whatever the wire shape', async () => {
+    const clients = [
+      openRouterJevClient({
+        apiKey: 'k',
+        fetch: async () => Response.json({ answers: { q0: { type: 'noul', noul: 0.9 } } }),
+      }),
+      vercelJevClient({
+        apiKey: 'k',
+        fetch: async () =>
+          Response.json({ answers: { q0: { type: 'boolean', probability: 0.9 } } }),
+      }),
+      cloudflareJevClient({
+        accountId: 'a',
+        apiToken: 'k',
+        fetch: async () =>
+          Response.json({ result: { answers: { q0: { type: 'noul', noul: 0.9 } } } }),
+      }),
+    ];
+
+    for (const client of clients) {
+      expect(await run({ client })).toMatchObject({
+        status: 'success',
+        output: true,
+        reason: 'jev p=0.9 (threshold 0.5)',
+      });
+    }
   });
 });
