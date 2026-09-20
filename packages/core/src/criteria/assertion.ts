@@ -87,20 +87,24 @@ export const aiAssertion: (options: AiAssertionOptions) => Criterion<boolean> = 
           { role: 'user', content: input },
         ],
         schema: z.object({
-          verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
-
+          // `reason` is first, and required, on purpose: the judge must state its
+          // reasoning before it commits to a boolean. With `verdict` first, the model has
+          // been observed to emit a verdict and then reason its way to the opposite
+          // conclusion. Leaving `reason` nullable would let it skip the reasoning and
+          // reintroduce the same guess, so ordering alone does not carry the guarantee.
           reason: z
             .string()
-            .nullable()
             .describe(
               'Brief explanation of the verdict, citing the relevant parts of the conversation. Especially important when the assertion fails.',
             ),
+
+          verdict: z.boolean().describe('True if the assertion is correct, false otherwise'),
         }),
       });
 
       return {
         output: verdict,
-        reason: reason?.trim() || undefined,
+        reason: reason.trim() || undefined,
         status: verdict ? 'success' : 'failure',
       };
     },
