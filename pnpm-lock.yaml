@@ -6,7 +6,7 @@ settings:
 
 overrides:
   fast-uri: '>=3.1.6 <4'
-  ip-address: ^10.3.1
+  ip-address: ^10.5.1
   hono: '>=4.13.5 <5'
   '@hono/node-server': '>=2.0.5 <3'
   '@fastify/static': ^10.1.2
@@ -1408,8 +1408,8 @@ packages:
     resolution: {integrity: sha512-zDml/jzr2PKU9I8J/xyZBQn8rPCAY//UOYNmR01XwNwyfhEWObo2SWfSl1+0tm1u6PhxLwDnfsT/6jB7OUxqFA==}
     engines: {node: '>= 0.10'}
 
-  ip-address@10.4.0:
-    resolution: {integrity: sha512-oSK96Grm3aP6OrS263xVxbNDGVL7rzBtYdpGqlDG8iQdoenDoTs/nkki+DflYbAEE8Xl6o5YxhxlrKvI3nqKXQ==}
+  ip-address@10.7.3:
+    resolution: {integrity: sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -3215,7 +3215,7 @@ snapshots:
   express-rate-limit@8.5.2(express@5.2.1(supports-color@7.2.0)):
     dependencies:
       express: 5.2.1(supports-color@7.2.0)
-      ip-address: 10.4.0
+      ip-address: 10.7.3
 
   express@5.2.1(supports-color@7.2.0):
     dependencies:
@@ -3494,7 +3494,7 @@ snapshots:
 
   install@0.13.0: {}
 
-  ip-address@10.4.0: {}
+  ip-address@10.7.3: {}
 
   ipaddr.js@1.9.1: {}
 
