@@ -39,7 +39,7 @@
   "pnpm": {
     "overrides": {
       "fast-uri": ">=3.1.6 <4",
-      "ip-address": "^10.3.1",
+      "ip-address": "^10.5.1",
       "hono": ">=4.13.5 <5",
       "@hono/node-server": ">=2.0.5 <3",
       "@fastify/static": "^10.1.2",
