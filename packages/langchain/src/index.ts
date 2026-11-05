@@ -155,12 +155,20 @@ export function langChainZEvalsJudge({
         return message ? [message] : [];
       });
 
-      const structuredModel = model.withStructuredOutput?.(schema);
+      // `schema` is a zod 4 schema (the zod @zevals/core ships). LangChain integrations built
+      // for zod 3 turn it into an empty JSON Schema, so pass JSON Schema (draft-07, the
+      // dialect LangChain itself emits) and validate the answer with zod here.
+      // `strict: true` keeps OpenAI on strict structured outputs, which LangChain only turns on
+      // by itself for zod schemas; providers without a strict mode ignore the option.
+      const structuredModel = model.withStructuredOutput?.(
+        z.toJSONSchema(schema, { target: 'draft-7' }),
+        { strict: true },
+      );
       if (!structuredModel) {
         throw new Error('Given model does not support structured output');
       }
 
-      const output = (await structuredModel.invoke(lcMessages)) as z.infer<typeof schema>;
+      const output = schema.parse(await structuredModel.invoke(lcMessages));
 
       return { output };
     },
