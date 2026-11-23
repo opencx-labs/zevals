@@ -121,9 +121,13 @@ export const aiToolsCalled: (options: {
     const reversedActualToolCalls = actualToolCalls.toReversed();
     const reversedToolCallAssertions = options.toolCalls.toReversed();
 
+    // Each actual tool call can satisfy at most one tool call assertion
+    const matchedToolCalls = new Set<ToolCall>();
+
     for (let i = 0; i < reversedToolCallAssertions.length; i++) {
       const toolCallAssertion = reversedToolCallAssertions[i];
 
+      let actualToolCall: ToolCall | undefined;
       if (options.assertOrder) {
         const correspondingActualToolCall = reversedActualToolCalls[i];
         if (!correspondingActualToolCall) {
@@ -141,18 +145,22 @@ export const aiToolsCalled: (options: {
             reason: `Tool '${correspondingActualToolCall.name}' was called out of order - expected '${toolCallAssertion.name}'`,
           };
         }
-      }
 
-      const actualToolCall = reversedActualToolCalls.find(
-        (call) => call.name === toolCallAssertion.name,
-      );
+        actualToolCall = correspondingActualToolCall;
+      } else {
+        actualToolCall = reversedActualToolCalls.find(
+          (call) => call.name === toolCallAssertion.name && !matchedToolCalls.has(call),
+        );
 
-      if (!actualToolCall) {
-        return {
-          output: { toolCallOrderSatisfied: true },
-          status: 'failure',
-          reason: `Tool '${toolCallAssertion.name}' was not called`,
-        };
+        if (!actualToolCall) {
+          return {
+            output: { toolCallOrderSatisfied: true },
+            status: 'failure',
+            reason: `Tool '${toolCallAssertion.name}' was not called`,
+          };
+        }
+
+        matchedToolCalls.add(actualToolCall);
       }
 
       if (toolCallAssertion.assertion) {
